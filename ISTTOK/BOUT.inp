@@ -1,0 +1,213 @@
+# ISTTOK test case
+
+NOUT = 2000    # number of output time-steps
+TIMESTEP = 10 # time between outputs
+
+ShiftXderivs = false # use shifted radial derivatives?
+TwistShift = true  # use twist-shift condition?
+
+ZPERIOD=1
+
+grid = "ISTTOK/isttok-68x16x256-q7-5ev.nc"
+
+[mesh]
+symmetricGlobalX = true
+
+##################################################
+# derivative methods
+
+[ddx]
+
+first = C2
+second = C2
+upwind = W3
+
+[ddy]
+
+first = C2
+second = C2
+upwind = W3
+
+[ddz]
+
+first = C2
+second = C2
+upwind = W3
+
+###################################################
+# Time-integration solver
+
+[solver]
+mxstep = 1000000
+
+# Note: If evolving neutrals, need preconditionin
+type = pvode
+use_precon = false
+
+ATOL = 1.0e-10  # absolute tolerance
+RTOL = 1.0e-5   # relative tolerance
+mxstep = 1000000  # Maximum internal steps per output
+[laplace]
+all_terms = true
+nonuniform=true
+
+##################################################
+# Electrostatic potential solver
+
+[phiSolver]
+inner_boundary_flags = 1   # DC zero gradient
+outer_boundary_flags = 16  # INVERT_SET  (2.8 * Te)
+
+[laplacexy]  # 2D solver in X-Y
+pctype = sor    # Preconditioner
+
+atol = 1e-12
+rtol = 1e-8
+
+core_bndry_dirichlet = false
+pf_bndry_dirichlet = true
+y_bndry_dirichlet = false
+
+include_y_derivs = true
+
+[aparSolver]
+inner_boundary_flags =  0
+outer_boundary_flags = 0
+
+# general settings for the model
+
+[Hermes]
+
+numdiff = 0.01    # Numerical diffusion
+hyper = -1      # Hyper-diffusion
+ExBdiff = 1e-3  # Dissipation in ExB advection terms
+pardiff = 0.1    # Numerical dissipation, parallel flow driven by pressure
+ADpar = -1
+z_hyper_viscos = -1
+
+electromagnetic = true  # Electromagnetic? Otherwise electrostatic
+FiniteElMass    = true  # Finite electron mass?
+
+# Electrostatic potential
+split_n0 = false  # Solve n=0 separately?
+
+# NOTE: all currents switched off for fluid run
+j_diamag       = true  # Diamagnetic current: Vort <-> Pe
+j_par          = true  # Parallel current:    Vort <-> Psi
+
+pe_par         = true  # Parallel pressure gradient: Pe <-> Psi
+resistivity    = true  # Resistivity: Psi -> Pe
+thermal_flux   = true
+thermal_force  = true
+electron_viscosity = false
+thermal_conduction = true
+
+neutral_model = 0 	# Evolve neutral gas method
+			# 0 - no neutrals
+			# 1 - perp diffusion
+			# 2 - exponential model for Nn
+			# 3 - full neutral model
+                        # 4 - Diffusive in XZ, fluid in Y
+frecycle = 0.9
+
+carbon_fraction = 0.0  # Carbon % 
+
+## Settings for 2D parallel closures
+sinks = false
+sink_invlpar =  0.2  # 5m parallel connection length
+sheath_closure = false
+drift_wave = false
+
+density_diffusion = true  # Collisional diffusion
+thermal_diffusion = true
+ion_viscosity = true      # Collisional viscosity
+neoclassical_q = 0        # Enhancement to classical diffusion
+
+anomalous_D = -1  # Anomalous density diffusion [m^2/s]
+anomalous_chi = -1 # Anomalous thermal diffusion [m^2/s]
+
+poloidal_flows = false 
+
+magnetic_drift = true
+ion_velocity   = true
+
+ion_neutral = 0.0
+
+boussinesq = true   # Use Boussinesq approximation
+
+# Radial boundary fluxes
+ne_bndry_flux = true
+pe_bndry_flux = true
+vort_bndry_flux = true
+
+ramp_mesh      = false
+ramp_timescale = 1e4
+
+sheath_model = 2  # 0 = Bohn, 1 = Loizu, 2 = Bohm + free density
+sheath_yup = true
+sheath_ydown = true
+sheath_gamma = 6.5
+neutral_gamma = 1.2
+
+startprofiles = true # Start with mesh profiles
+
+core_sources = true # Only sources in the core
+adapt_source = true   # Feedback on profiles (PI controller)
+energy_source = true   # Constant power per particle (at fixed x). False -> Constant power per volume
+source_p = 1e-2       # Rate based on current error (1/timescale)
+source_i = 1e-6       # Integral of error (1/timescale^2)
+
+staggered = false
+
+verbose = true  # Output additional fields Telim and Jpar
+
+# Normalisation factors
+Nnorm = 1e18
+Tnorm = 10
+Bnorm = 1
+
+[All]
+scale = 0.0
+
+xs_opt = 1
+ys_opt = 2
+zs_opt = 3
+
+xs_s0 = 0.5
+xs_wd = 0.1
+
+ys_s0 = 0.5
+ys_wd = 0.3
+
+ys_mode = 1
+
+bndry_all = neumann
+
+[Ne] # Electron density
+scale = 1
+
+function = 0.2 
+
+source = 1e2 * exp(-(4*x^2))
+
+[NVi]
+bndry_ydown = dirichlet_o2
+
+[Ve]
+bndry_ydown = dirichlet_o2
+
+[Vort] # Vorticity
+
+[Pe]  # Electron pressure
+scale = 1
+function = 0.01 + 0.001*sin(8*pi*x - 5*z)*(1-x)
+#function = exp(-(x/0.12)^2)
+
+source = Ne:source * 5 # 
+
+[VePsi] # Ve + 0.5*beta_e*mi_me*psi
+bndry_core = neumann_o2 #constlaplace
+bndry_pf   = dirichlet_o2
+bndry_xout = dirichlet_o2
+
+

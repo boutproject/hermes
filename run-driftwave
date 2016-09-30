@@ -1,0 +1,183 @@
+#!/usr/bin/env python
+
+#
+# Run the test, compare results against the benchmark
+#
+
+nproc = 2       # Number of processors to run on
+
+path = "driftwave"
+
+from boututils import file_import
+from boututils.linear_regression import linear_regression
+from boututils.run_wrapper import shell, launch
+from boututils.calculus import deriv
+from boutdata import collect
+from numpy import pi, arange, sqrt, log, zeros, argmax, abs
+from sys import stdout, exit
+
+from driftwave.analytic import dispersion
+
+import matplotlib.pyplot as plt
+
+print "Making resistive drift instability test"
+shell("make > make.log")
+
+# List of Zeff values
+zlist = [1,2,4,8,16,32,64,128,256]
+
+R  = 5.4
+Bp = 1.
+B  = 1.
+Ln = 4.47091 * 1e2
+
+Te = 50
+Ti = 0.0
+bmag = 1.
+Ni0 = 0.46
+
+dy = 0.196350
+hthe = 5.33682
+
+Tnorm = Te
+
+wa_r = []
+wa_i = []
+
+w_r = []
+w_i = []
+
+spn = []
+
+for zeff in zlist:
+    timestep = 5e3
+    if zeff < 128:
+        # reduce time-step
+        timestep = 1e3
+        
+        
+    print "Running drift instability test, zeff = %f" % (zeff,)
+
+    # Run the case
+    s, out = launch("./hermes-1 timestep=%e hermes:resistivity_multiply=%e "
+                    % (timestep, zeff)
+                    +" -d "+path, nproc=nproc, pipe=True)
+    f = open("run.log."+str(zeff), "w")
+    f.write(out)
+    f.close()
+    
+    # Collect data
+    Ni = collect("Ne", path=path, xind=2, yind=20, info=False)
+    
+    zmax     = collect("ZMAX", path=path, info=False)
+    rho_s    = collect("rho_s0", path=path, info=False)
+    wci      = collect("Omega_ci", path=path, info=False)
+    t_array  = collect("t_array", path=path, info=False)
+        
+    rho_s *= 1e2; # cm
+    
+    dims = Ni.shape
+    nt = dims[0]
+    ny = dims[2]
+    nz = dims[3]
+    
+    ##### Calculate geometric and physical quantities
+    lZeta  = 1e2*zmax*2*pi*R    # toroidal range [cm]
+    lbNorm = lZeta*(Bp/B)         # binormal coord range [cm]
+    zPerp  = lbNorm*arange(nz)/(nz-1)    # binormal coordinate [cm]
+    
+    cLight = 3e10               # speed of light [cm/s]
+    vTe    = 4.193e7*sqrt(Te)   # electron thermal speed [cm/s]
+    kperp  = 2*pi/lbNorm        # binormal wavenumber, [cm-1]
+    wce    = 1.7585e7*1e4*bmag    # electron cyclotron frequency, [rad/s]
+    
+    vPe   = (vTe)**2/(wce*Ln) # electron diamagnetic drift speed [cm/s]
+    wstar = vPe*kperp 
+    
+    logLam = 24. - log(sqrt(Ni0*1e14)/Te)
+    nuei   = zeff*2.91e-6*(Ni0*1e14)*logLam/Te**1.5
+    
+    lpar = (B/Bp)*2.*pi*hthe # [m]
+    kpar = 2*pi/(1e2*lpar) # cm-1
+    spar = (kpar/kperp)**2 * wci * wce / (0.51 * nuei) # [1/s]
+    sparn = spar / wstar
+    
+    ##### Analyse data
+    
+    nt0 = 10  # Skip initial part of the curve (transients)
+    
+    # Measure exponential growth-rate using maximum value
+    maxVal = zeros(nt - nt0)
+    
+    # Track the motion of the peak to infer phase velocity
+    peak = zeros(nt-nt0)
+    
+    for t in range(nt0, nt):
+        ind = argmax(Ni[t,0,0,:])  # Index of maximum value
+        maxVal[t-nt0] = Ni[t,0,0,ind] - min(Ni[t,0,0,:]) # Store maximum value (for gamma)
+        # Refine maximum location by fitting a quadratic through 3 points
+        c = Ni[t,0,0,ind]
+        m = Ni[t,0,0,(ind-1) % nz] # Python '%' always positive
+        p = Ni[t,0,0,(ind+1) % nz]
+        # Fit y = c + ax + bx**2
+        a = 0.5*(p-m)
+        b = p - (c + a)
+        peak[t-nt0] = ind - 0.5*a/b # Maximum 
+    
+    # Check for periodic recurrence
+
+    change = peak[1] - peak[0]
+    if change > nz/2:
+        change -= nz;
+    if change < -nz/2:
+        change += nz;
+    
+    if change > 0.0:
+        # Increasing; watch for wrapping around the top
+        for i in range(nt-nt0):
+            if peak[i] < peak[i-1]:
+                peak[i:(nt-nt0)] = peak[i:(nt-nt0)] + nz
+    else:
+        # Decreasing; watch for wrapping around the bottom
+        for i in range(nt-nt0):
+            if peak[i] > peak[i-1]:
+                peak[i:(nt-nt0)] = peak[i:(nt-nt0)] - nz
+
+    # Fit y = a + gamma*x
+    a, gamma = linear_regression(t_array[nt0:nt]/wci, log(maxVal))
+    
+    # Get phase velocity
+    a, Vphase = linear_regression(t_array[nt0:nt]/wci, peak*lbNorm/(nz-1))
+        
+    # Calculate normalised quantities
+    omega=abs(Vphase)*kperp/wstar
+    gamma=gamma/wstar
+    
+    # Calculate analytic result
+    w,_ = dispersion(kperp*rho_s, sparn, Ti/Te)
+    wr = w.real
+    wi = w.imag
+    
+    print "  Normalised omega = ", omega, " analytic = ", wr
+    print "  Normalised gamma = ", gamma, " analytic = ", wi
+    
+    wa_r.append(wr)
+    wa_i.append(wi)
+    w_r.append(omega)
+    w_i.append(gamma)
+    spn.append(sparn)
+    
+plt.plot(spn, wa_r, color="k", label="Frequency")
+plt.plot(spn, w_r, color="k", marker='o', linestyle='.')
+
+plt.plot(spn, wa_i, color="r", linestyle=':', label="Growth-rate")
+plt.plot(spn, w_i, color="r", marker='x', linestyle='.')
+    
+#plt.ylim([0,1.0])
+plt.legend(loc='upper left')
+plt.xlabel(r'$\sigma_{||} / \omega_*$')
+plt.ylabel(r'$\omega / \omega_*$')
+plt.title(r'Resistive drift wave')
+plt.xscale('log')
+plt.savefig("driftwave.pdf")
+plt.show()

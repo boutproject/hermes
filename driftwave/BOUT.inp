@@ -1,0 +1,298 @@
+# Pisces test case
+
+NOUT = 30    # number of output time-steps
+TIMESTEP = 5e3 # time between outputs
+
+ShiftXderivs = false # use shifted radial derivatives?
+TwistShift = false  # use twist-shift condition?
+ballooning = false
+shiftinitial = false
+
+##################################################
+# Define the mesh to use
+
+[mesh]
+
+nx = 5
+ny = 32
+nz = 32
+
+dx = 1e-3
+dy = 2*pi / ny
+dz = 0.0012 / nz
+
+Rxy = 5.4
+hthe = 5.33682
+
+Bpxy = 1.
+Btxy = 0.
+Bxy  = 1.
+
+sinty = 0.
+qinty = 0.
+
+bxcvx = 0.
+bxcvy = 0.
+bxcvz = 0.
+
+# Normalisation factors
+qe = 1.602e-19
+mi = 2.0 * 1.67e-27
+Cs0 = sqrt(qe * hermes:Tnorm / mi) # Reference sound speed
+Omega_ci = qe * hermes:Bnorm / mi  # Reference cyclotron frequency
+rho_s0   = Cs0 / Omega_ci
+
+Ln = 4.47091  # Radial scale length [m]
+
+ne = 0.46
+dndx = -ne / (Ln * Bpxy * Rxy)
+
+Ni0 = ne + dndx * x * dx * (nx-4)
+Te0 = 50
+
+##################################################
+# derivative methods
+
+[ddx]
+
+first = C2
+second = C2
+upwind = W3
+
+[ddy]
+
+first = C2
+second = C2
+upwind = W3
+
+[ddz]
+
+first = C2
+second = C2
+upwind = W3
+
+###################################################
+# Time-integration solver
+
+[solver]
+mxstep = 1000000
+
+# Note: If evolving neutrals, need preconditioning
+#type = cvode
+#use_precon = true
+
+ATOL = 1.0e-10  # absolute tolerance
+RTOL = 1.0e-5   # relative tolerance
+mxstep = 1000000  # Maximum internal steps per output
+
+##################################################
+# Electrostatic potential solver
+
+[phiSolver]
+flags = 26
+
+[laplacexy]  # 2D solver in X-Y
+pctype = sor    # Preconditioner
+
+atol = 1e-12
+rtol = 1e-8
+
+core_bndry_dirichlet = false
+pf_bndry_dirichlet = true
+y_bndry_dirichlet = false
+
+include_y_derivs = true
+
+[aparSolver]
+inner_boundary_flags = 0
+outer_boundary_flags = 0
+
+# general settings for the model
+
+[hermes]
+
+numdiff = -1  # Numerical diffusion
+hyper = -1    # Hyper-diffusion
+ExBdiff = -1  # Dissipation in ExB advection terms
+pardiff = -1  # Numerical dissipation, parallel flow driven by pressure
+adpar = -1
+low_pass_z = 1
+
+electromagnetic = false  # Electromagnetic? Otherwise electrostatic
+FiniteElMass    = false  # Finite electron mass?
+
+# Electrostatic potential
+split_n0 = false  # Solve n=0 separately?
+
+# NOTE: all currents switched off for fluid run
+j_diamag       = false  # Diamagnetic current: Vort <-> Pe
+j_par          = true  # Parallel current:    Vort <-> Psi
+
+pe_par         = true  # Parallel pressure gradient: Pe <-> Psi
+resistivity    = true  # Resistivity: Psi -> Pe
+thermal_flux   = false
+thermal_force  = false
+electron_viscosity = false
+thermal_conduction = true
+parallel_flow  = true
+
+neutral_model = 0 	# Evolve neutral gas method
+			# 0 - no neutrals
+			# 1 - perp diffusion
+			# 2 - exponential model for Nn
+			# 3 - full neutral model
+                        # 4 - Diffusive in XZ, fluid in Y
+frecycle = 0.0
+
+
+carbon_fraction = 0.0  # Carbon %
+ 
+## Settings for 2D parallel closures
+sinks = false
+sink_invlpar =  0.2  # 5m parallel connection length
+sheath_closure = false
+drift_wave = false
+
+density_diffusion = false  # Collisional diffusion
+thermal_diffusion = false
+ion_viscosity = false      # Collisional viscosity
+neoclassical_q = 0        # Enhancement to classical diffusion
+
+anomalous_D = -1  # Anomalous density diffusion [m^2/s]
+anomalous_chi = -1 # Anomalous thermal diffusion [m^2/s]
+
+poloidal_flows = false 
+
+magnetic_drift = true
+ion_velocity   = false
+
+ion_neutral = 0.0
+
+boussinesq = true   # Use Boussinesq approximation
+
+ne_bndry_flux = true
+pe_bndry_flux = true
+vort_bndry_flux = false
+
+ramp_mesh      = false
+ramp_timescale = 1e4
+
+sheath_model = 3  # 0 = Bohn, 1 = Loizu, 2 = Bohm + free density, 3 = insulating sheath
+sheath_yup = false
+sheath_ydown = false
+
+startprofiles = true
+
+core_sources = false # Only sources in the core
+adapt_source = false   # Feedback on profiles (PI controller)
+energy_source = true   # Constant power per particle (at fixed x). False -> Constant power per volume
+source_p = 1e-2       # Rate based on current error (1/timescale)
+source_i = 1e-6       # Integral of error (1/timescale^2)
+
+staggered = false
+
+verbose = true  # Output additional fields Telim and Jpar
+
+# Normalisation factors
+Nnorm = 4.6e19
+Tnorm = 50
+Bnorm = 1.0
+
+[All]
+scale = 0.0
+
+xs_opt = 1
+ys_opt = 2
+zs_opt = 3
+
+xs_s0 = 0.5
+xs_wd = 0.1
+
+ys_s0 = 0.5
+ys_wd = 0.3
+
+ys_mode = 1
+
+bndry_all = neumann
+
+[Ne] # Electron density
+scale = 1e-3
+function = sin(y-z)
+
+# Normalised density gradient
+dndx_norm = mesh:dndx*1e20 * mesh:rho_s0^2 * hermes:bnorm / hermes:nnorm 
+
+bndry_xin = neumann_o2(ne:dndx_norm)
+bndry_xout = neumann_o2(ne:dndx_norm)
+
+[Vort]
+function = 0
+bndry_all = neumann
+
+[VePsi] # Ve + 0.5*beta_e*mi_me*psi
+bndry_core = neumann_o2 
+bndry_xout = dirichlet_o2
+
+[NVi]
+bndry_ydown = dirichlet_o2
+
+[Ve]
+bndry_ydown = dirichlet_o2
+
+[Pe]  # Electron pressure
+scale = ne:scale
+function = ne:function
+
+bndry_xin = neumann_o2(ne:dndx_norm)
+bndry_xout = neumann_o2(ne:dndx_norm)
+
+[Jpar]
+bndry_all = none
+bndry_ydown = dirichlet_o2
+
+[phi]
+# Radial boundaries determined by Laplacian inversion
+bndry_xin = none
+bndry_xout = none
+
+bndry_all = neumann_o2
+bndry_ydown = free_o2
+
+[Nn]
+
+scale = 5e-2
+function = 1
+
+bndry_all = neumann_o2
+
+[Vn]
+
+scale = 0
+function = 0
+
+bndry_all = dirichlet_o2
+
+[Vn_x]
+scale = 0
+function = 0
+bndry_all = dirichlet_o2
+
+[Vn_y]
+scale = 0
+function = 0
+bndry_all = dirichlet_o2
+
+[Vn_z]
+scale = 0
+function = 0
+bndry_all = dirichlet_o2
+
+[Pn]
+
+scale = 5e-2
+function = 1
+
+bndry_all = neumann_o2
+
+[NVn]
+bndry_all = dirichlet_o2
