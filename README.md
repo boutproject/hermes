@@ -63,6 +63,10 @@ Simulations
 * linear-device
   linear device simulation (no neutrals)
 
+* circular 
+  Large aspect ratio, circular cross-section. Axisymmetric electric
+  fields and current evolution
+
 * d3d
   Axisymmetric plasma transport (no electric fields)
 
