@@ -184,11 +184,9 @@ neutral_gamma = 0.0
 
 startprofiles = true
 
-core_sources = true # Only sources in the core
 adapt_source = true   # Feedback on profiles (PI controller)
 energy_source = true   # Constant power per particle (at fixed x). False -> Constant power per volume
-source_p = 1e-2       # Rate based on current error (1/timescale)
-source_i = 1e-6       # Integral of error (1/timescale^2)
+
 
 staggered = false
 
@@ -214,7 +212,11 @@ bndry_xout = shifted(neumann_o2)
 [Ne] # Electron density 
 function = 0
 
-source = 0.0 #1e2 * exp(-(32*x^2))
+source = exp(-(16*x^2))
+
+source_core_only = true
+controller_i = 1e-6
+controller_p = 1e-2
 
 [Vort]
 function = 0
@@ -228,9 +230,11 @@ bndry_xout = shifted(dirichlet_o2)
 scale = 1.0
 function = 0.01*max(0,ballooning(mixmode(z)*exp(-(y-0.5)^2))*(1-x))
 
-#function = 0.01 + 0.001*ballooning(sin(8*pi*x - 5*z)*exp(-(y-0.5)^2))*(1-x)
+source = exp(-(16*x^2))
 
-source = 6e2 * exp(-(32*x^2))
+source_core_only = true
+controller_i = 1e-6
+controller_p = 1e-2
 
 [Ve]
 
@@ -240,8 +244,6 @@ bndry_xin = none
 bndry_xout = none
 
 bndry_all = dirichlet_o2
-
-
 
 [Nn]
 

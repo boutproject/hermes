@@ -33,6 +33,7 @@ class Hermes;
 #include <bout/constants.hxx>
 
 #include "radiation.hxx"
+#include "adaptive_sources.hxx"
 
 class Hermes : public PhysicsModel {
 public:
@@ -226,16 +227,15 @@ private:
   
   // Sources and profiles
   
-  bool ramp_mesh;   // Use Ne,Pe in the grid file for starting ramp target
-  BoutReal ramp_timescale; // Length of time for the initial ramp
   Field2D NeTarget, PeTarget; // For adaptive sources
   
   bool adapt_source; // Use a PI controller to feedback profiles
-  bool core_sources; // Sources only in the core
   bool energy_source; // Add the same amount of energy to each particle
-  BoutReal source_p, source_i;  // Proportional-Integral controller
+
+  AdaptiveSource density_source;
+  AdaptiveSource pressure_source;
+  
   Field2D Sn, Spe; // Sources in density and Pe
-  bool density_inflow;  // Does incoming density have momentum?
   
   bool pe_bndry_flux;   // Allow flux of pe through radial boundaries
   bool ne_bndry_flux;   // Allow flux of ne through radial boundaries

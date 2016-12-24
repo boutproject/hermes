@@ -91,9 +91,6 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, pe_bndry_flux, true);
   OPTION(optsc, vort_bndry_flux, false);
   
-  OPTION(optsc, ramp_mesh, true);
-  OPTION(optsc, ramp_timescale, 1e4);
-  
   OPTION(optsc, energy_source, false);
   
   OPTION(optsc, ion_neutral, 0.0);
@@ -214,14 +211,11 @@ int Hermes::init(bool restarting) {
     output.write("\tnormalised anomalous nu_perp = %e\n", anomalous_nu);
   }
 
-  if(ramp_mesh) {
-    Jpar0 = 0.0;
-  }else {
-    // Read equilibrium current density
-    //GRID_LOAD(Jpar0);
-    //Jpar0 /= qe*Nnorm*Cs0;
-    Jpar0 = 0.0;
-  }
+  
+  // Read equilibrium current density
+  //GRID_LOAD(Jpar0);
+  //Jpar0 /= qe*Nnorm*Cs0;
+  Jpar0 = 0.0;
 
   string source;
   FieldFactory fact(mesh);
@@ -239,15 +233,26 @@ int Hermes::init(bool restarting) {
   }
 
   // Get switches from each variable section
+  
   Options *optne = opt->getSection("Ne");
   optne->get("D", Dne, -1.0);
   optne->get("source", source, "0.0");
   Sn = fact.create2D(source);
   Sn /= Omega_ci;
- 
-  // Inflowing density carries momentum
-  OPTION(optne, density_inflow, false);
 
+  bool source_core_only;
+  OPTION(optne, source_core_only, false);
+  if(source_core_only) {
+    for(int x=mesh->xstart;x<=mesh->xend;x++) {
+      if(!mesh->periodicY(x)) {
+        // Not periodic, so not in core
+        for(int y=mesh->ystart;y<=mesh->yend;y++) {
+          Sn(x,y) = 0.0;
+        }
+      }
+    }
+  }
+  
   Options *optvort = opt->getSection("Vort");
   optvort->get("D", Dvort, -1.0);
   optvort->get("mupar", vort_mupar, -1);
@@ -258,16 +263,16 @@ int Hermes::init(bool restarting) {
   Options *optpe = opt->getSection("Pe");
   optpe->get("D", Dte, -1.0);
   optpe->get("source", source, "0.0");
+
   Spe = fact.create2D(source);
   Spe /= Omega_ci;
   
-  OPTION(optsc, core_sources, false);
-  if(core_sources) {
+  OPTION(optpe, source_core_only, false);
+  if(source_core_only) {
     for(int x=mesh->xstart;x<=mesh->xend;x++) {
       if(!mesh->periodicY(x)) {
         // Not periodic, so not in core
         for(int y=mesh->ystart;y<=mesh->yend;y++) {
-          Sn(x,y) = 0.0;
           Spe(x,y) = 0.0;
         }
       }
@@ -339,24 +344,6 @@ int Hermes::init(bool restarting) {
   optsc->get("Ti", Ti, Tnorm); // Ion temperature [eV]
   Ti /= Tnorm; // Normalise
   
-  OPTION(optsc, adapt_source, false);
-  if(adapt_source) {
-    // Adaptive sources to match profiles
-
-    // PI controller, including an integrated difference term
-    OPTION(optsc, source_p, 1e-2);
-    OPTION(optsc, source_i, 1e-6);
-
-    Field2D Snsave = copy(Sn);
-    Field2D Spesave = copy(Spe);
-    SOLVE_FOR2(Sn, Spe);
-    Sn = Snsave;
-    Spe = Spesave;
-    
-  }else {
-    SAVE_ONCE2(Sn, Spe);
-  }
-  
   /////////////////////////////////////////////////////////
   // Load metric tensor from the mesh, passing length and B
   // field normalisations
@@ -392,6 +379,29 @@ int Hermes::init(bool restarting) {
     mesh->geometry(); // Calculate other metrics
   }
 
+  /////////////////////////////////////////////////////////
+  // Adaptive sources
+  // Needs to be done after metric is set up
+  
+  OPTION(optsc, adapt_source, false);
+  if(adapt_source) {
+    // Adaptive sources to match profiles
+
+    density_source.init("density",
+                        Sn,
+                        optsc->getSection("ne"),
+                        solver, mesh, restarting);
+    
+    pressure_source.init("pressure",
+                         Spe,
+                         optsc->getSection("pe"),
+                         solver, mesh, restarting);
+    
+    SAVE_REPEAT2(Sn, Spe);
+  }else {
+    SAVE_ONCE2(Sn, Spe);
+  }
+  
   /////////////////////////////////////////////////////////
   // Neutral models
   
@@ -634,7 +644,7 @@ int Hermes::init(bool restarting) {
   NeTarget = NeMesh;
   PeTarget = NeMesh * TeMesh;
   
-  if(!restarting && !ramp_mesh) {
+  if(!restarting) {
     bool startprofiles;
     OPTION(optsc, startprofiles, true);
     if(startprofiles) {
@@ -1695,10 +1705,6 @@ int Hermes::rhs(BoutReal t) {
     ddt(Ne) -= Div_f_v_XPPM(Ne, -Telim*Curlb_B, ne_bndry_flux); // Grad-B, curvature drift
   }
   
-  if(ramp_mesh && (t < ramp_timescale)) {
-    ddt(Ne) += NeTarget / ramp_timescale;
-  }
-  
   if(density_diffusion) {
     // perpendicular diffusion
     Dn = (1. + 1.3*SQ(neoclassical_q)) * 2. / (tau_e0*Omega_ci * mi_me);
@@ -1712,44 +1718,11 @@ int Hermes::rhs(BoutReal t) {
   }
   
   // Source
-  Field3D NeSource;
   if(adapt_source) {
-    // Add source. Ensure that sink will go to zero as Ne -> 0
-    Field2D NeErr = averageY(Ne.DC() - NeTarget);
-    
-    if(core_sources) {
-      // Sources only in core (periodic Y) domain
-      // Try to keep NeTarget
-      
-      ddt(Sn) = 0.0;
-      for(int x=mesh->xstart;x<=mesh->xend;x++) {
-        if(!mesh->periodicY(x))
-          continue; // Not periodic, so skip
-        
-        for(int y=mesh->ystart;y<=mesh->yend;y++) {
-          Sn(x,y) -= source_p * NeErr(x,y);
-          ddt(Sn)(x,y) = -source_i * NeErr(x,y);
-
-          if(Sn(x,y) < 0.0) {
-            Sn(x,y) = 0.0;
-            if(ddt(Sn)(x,y) < 0.0)
-              ddt(Sn)(x,y) = 0.0;
-          }
-        }
-      }
-      
-      NeSource = Sn;
-    }else {
-      // core_sources = false
-      NeSource = Sn*where(Sn, NeTarget, Ne);
-      NeSource -= source_p * NeErr/NeTarget;
-      
-      ddt(Sn) = -source_i * NeErr;
-    }
-  }else {
-    NeSource = Sn*where(Sn, 1.0, Ne);
+    // Update and get the adaptive source
+    Sn = density_source.get(Ne.DC(), NeTarget, t);
   }
-  ddt(Ne) += NeSource;
+  ddt(Ne) += Sn;
 
   if(ExBdiff > 0.0) {
     
@@ -1893,7 +1866,6 @@ int Hermes::rhs(BoutReal t) {
     
     if(resistivity) {
       ddt(VePsi) -= mi_me*nu*(Ve - Vi);
-      //ddt(VePsi) += mi_me*nu*(Jpar - Jpar0)/floor(Ne,1e-5); // External electric field
     }
     
     // Parallel electric field
@@ -1982,14 +1954,6 @@ int Hermes::rhs(BoutReal t) {
     if(numdiff > 0.0) {
       ddt(NVi) += Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22*numdiff, Vi);
     }
-    
-    if(density_inflow) {
-      // Particles arrive in cell at rate NeSource
-      // This should come from a flow through the cell edge
-      // with a flow velocity, and hence momentum
-      
-      ddt(NVi) += NeSource * (NeSource/Ne) * mesh->dy * sqrt(mesh->g_22);
-    }
 
     if(density_diffusion) {
       //ddt(NVi) += Div_Perp_Lap_XYZ(Vi*Dn, Ne, ne_bndry_flux);
@@ -2053,7 +2017,7 @@ int Hermes::rhs(BoutReal t) {
   
   if(currents && resistivity) {
     // Ohmic heating
-    ddt(Pe) += nu*Jpar*(Jpar - Jpar0)/Nelim;
+    ddt(Pe) += nu*SQ(Jpar)/Nelim;
   }
 
   ///////////////////////////////////
@@ -2131,9 +2095,6 @@ int Hermes::rhs(BoutReal t) {
     // in Ohm's law
     ddt(Pe) -= (2./3) * Pelim * Div_par(Ve);
   }
-  if(ramp_mesh && (t < ramp_timescale)) {
-    ddt(Pe) += PeTarget / ramp_timescale;
-  }
 
   //////////////////////
   // Classical diffusion
@@ -2168,59 +2129,15 @@ int Hermes::rhs(BoutReal t) {
   // Sources
   
   if(adapt_source) {
-    // Add source. Ensure that sink will go to zero as Pe -> 0
-    Field2D PeErr = averageY(Pe.DC() - PeTarget);
-
-    if(core_sources) {
-      // Sources only in core
-
-      ddt(Spe) = 0.0;
-      for(int x=mesh->xstart;x<=mesh->xend;x++) {
-        if(!mesh->periodicY(x))
-          continue; // Not periodic, so skip
-
-        for(int y=mesh->ystart;y<=mesh->yend;y++) {
-          Spe(x,y) -= source_p * PeErr(x,y);
-          ddt(Spe)(x,y) = -source_i * PeErr(x,y);
-
-          if(Spe(x,y) < 0.0) {
-            Spe(x,y) = 0.0;
-            if(ddt(Spe)(x,y) < 0.0)
-              ddt(Spe)(x,y) = 0.0;
-          }
-        }
-      }
-
-      if(energy_source) {
-        // Add the same amount of energy to each particle
-        ddt(Pe) += Spe*Nelim / Nelim.DC();
-      }else {
-        ddt(Pe) += Spe;
-      }
-    }else {
-      
-      Spe -= source_p * PeErr/PeTarget;
-      ddt(Spe) = -source_i * PeErr;
-
-      if(energy_source) {
-        // Add the same amount of energy to each particle
-        ddt(Pe) += Spe*Nelim / Nelim.DC();
-      }else {
-        ddt(Pe) += Spe*where(Spe, PeTarget, Pe);
-      }
-    }
+    // Update and get adaptive source
+    Spe = pressure_source.get(Pe.DC(), PeTarget, t);
+  }
+    
+  if(energy_source) {
+    // Add the same amount of energy to each particle
+    ddt(Pe) += Spe*Nelim / Nelim.DC();
   }else {
-    // Not adapting sources
-
-    if(energy_source) {
-      // Add the same amount of energy to each particle
-      ddt(Pe) += Spe*Nelim / Nelim.DC();
-    }else {
-      // Add the same amount of energy per volume
-      // If no particle source added, then this can lead to 
-      // a small number of particles with a lot of energy!
-      ddt(Pe) += Spe*where(Spe, 1.0, Pe);
-    }
+    ddt(Pe) += Spe*where(Spe, PeTarget, Pe);
   }
   
   //////////////////////
