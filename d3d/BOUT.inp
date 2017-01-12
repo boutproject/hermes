@@ -102,7 +102,6 @@ hyper = -1      # Hyper-diffusion
 hyperpar = 1 
 ExBdiff = 1e-4  # Dissipation in ExB advection terms
 ExBpar = true   # Include y terms in dissipation
-pardiff = -1e-3
 ADpar = 1
 z_hyper_viscos = 1e-2
 x_hyper_viscos = 1e-2

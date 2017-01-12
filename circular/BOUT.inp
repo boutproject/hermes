@@ -11,7 +11,7 @@ MZ = 1     # number of points in z direction (2^n + 1)
 
 ZPERIOD=10
 
-grid="circular/cbm18_dens8.grid_nx68ny64_profiles.nc"
+grid="cbm18_dens8.grid_nx68ny64_profiles.nc"
 
 [restart]
 init_missing=true
@@ -97,7 +97,6 @@ hyper = -1      # Hyper-diffusion
 hyperpar = 1 
 ExBdiff = 1e-4  # Dissipation in ExB advection terms
 ExBpar = true   # Include y terms in dissipation
-pardiff = -1e-3
 ADpar = 1
 ADpar_phine = true
 z_hyper_viscos = 1e-2

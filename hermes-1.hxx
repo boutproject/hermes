@@ -214,7 +214,6 @@ private:
   BoutReal neut_numdiff; // Numdiff for neutral gas
   BoutReal ExBdiff; 
   bool ExBpar; // Include parallel terms in ExBdiff
-  BoutReal pardiff;  // Parallel diffusion driven by Pe.
   BoutReal ADpar; // Added Dissipation method in the parallel direction
   bool ADpar_phine; // Include 1/Ne factor in phi ADpar term
   bool ADpar_bndry; // Boundaries included in ADpar?

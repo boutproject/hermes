@@ -108,7 +108,6 @@ outer_boundary_flags = 0
 numdiff = 1e-3    # Numerical diffusion
 hyper = -1      # Hyper-diffusion
 ExBdiff = 1e-5 #-1  # Dissipation in ExB advection terms
-pardiff = -1  # Numerical dissipation, parallel flow driven by pressure
 adpar = -1
 
 electromagnetic = true  # Electromagnetic? Otherwise electrostatic

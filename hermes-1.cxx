@@ -124,7 +124,6 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, hyperpar, -1);
   OPTION(optsc, ExBdiff, -1);
   OPTION(optsc, ExBpar, false);
-  OPTION(optsc, pardiff, -1);
   OPTION(optsc, ADpar, -1);
   OPTION(optsc, ADpar_phine, false);
   OPTION(optsc, ADpar_bndry, false);
@@ -1759,10 +1758,6 @@ int Hermes::rhs(BoutReal t) {
       ddt(Ne) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, Ne, ne_bndry_flux);
     }
   }
-  
-  if(pardiff > 0.0) {
-    ddt(Ne) += Div_Par_Diffusion(pardiff * SQ(mesh->dy)*mesh->g_22*Ne, logPelim, false);
-  }
 
   if(ADpar > 0.0) {
     //ddt(Ne) += ADpar * AddedDissipation(1.0, Pe, Ne, false);
@@ -2008,10 +2003,6 @@ int Hermes::rhs(BoutReal t) {
         ddt(NVi) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, NVi, ne_bndry_flux);
       }
     }
-    
-    if(pardiff > 0.0) {
-      ddt(NVi) += Div_Par_Diffusion(pardiff*SQ(mesh->dy)*mesh->g_22*NVi, logPelim, false);
-    }
 
     if(ADpar > 0.0) {
       ddt(NVi) += ADpar * AddedDissipation(Ne, Pe, NVi, ADpar_bndry);
@@ -2232,10 +2223,6 @@ int Hermes::rhs(BoutReal t) {
     }else {
       ddt(Pe) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, Pe, pe_bndry_flux);
     }
-  }
-  
-  if(pardiff > 0.0) {
-    ddt(Pe) += Div_Par_Diffusion(pardiff*SQ(mesh->dy)*mesh->g_22*Pe, logPelim, false);
   }
 
   if(ADpar > 0.0) {
@@ -3045,8 +3032,6 @@ int Hermes::rhs(BoutReal t) {
       + Te*nsink                  // Advection
       ;
     
-    
-    
     if(sheath_closure) {
       ///////////////////////////
       // Sheath dissipation closure
@@ -3082,48 +3067,6 @@ int Hermes::rhs(BoutReal t) {
     // Electron and ion parallel dynamics not evolved
   }
 
-  /*
-  // Switch off evolution at very low densities
-  // WARNING: This violates conservation of mass, can cause instability
-  for(int i=0;i<mesh->ngx;i++)
-    for(int j=0;j<mesh->ngy;j++)
-      for(int k=0;k<mesh->ngz-1;k++) {
-        if((Ne(i,j,k) < 1e-5) && (ddt(Ne)(i,j,k) < 0.0)) {
-          ddt(Ne)(i,j,k) = 0.0;
-          ddt(Pe)(i,j,k) = 0.0;
-        }
-      }
-  */
-  /*
-  // Check outputs
-  for(int i=mesh->xstart;i<=mesh->xend;i++) {
-    for(int j=mesh->ystart;j<=mesh->yend;j++) {
-      for(int k=0;k<mesh->ngz-1;k++) {
-        if(!finite(ddt(Ne)(i,j,k))) {
-          output.write("ddt(Ne) at %d,%d,%d\n", i,j,k);
-          exit(1);
-        }
-        if(!finite(ddt(NVi)(i,j,k))) {
-          output.write("ddt(NVi) at %d,%d,%d\n", i,j,k);
-          exit(1);
-        }
-        if(!finite(ddt(Pe)(i,j,k))) {
-          output.write("ddt(Pe) at %d,%d,%d\n", i,j,k);
-          exit(1);
-        }
-        if(!finite(ddt(Vort)(i,j,k))) {
-          output.write("ddt(Vort) at %d,%d,%d\n", i,j,k);
-          exit(1);
-        }
-        if(!finite(ddt(VePsi)(i,j,k))) {
-          output.write("ddt(VePsi) at %d,%d,%d\n", i,j,k);
-          exit(1);
-        }
-      }
-    }
-  }
-  */
-
   if(low_pass_z >= 0) {
     // Low pass Z filtering, keeping up to and including low_pass_z
     ddt(Ne) = lowPass(ddt(Ne), low_pass_z);
@@ -3151,6 +3094,13 @@ int Hermes::rhs(BoutReal t) {
   return 0;
 }
 
+/*!
+ * Preconditioner. Solves the heat conduction
+ * 
+ * @param[in] t  The simulation time
+ * @param[in] gamma   Factor in front of the Jacobian in (I - gamma*J). Related to timestep
+ * @param[in] delta   Not used here
+ */
 int Hermes::precon(BoutReal t, BoutReal gamma, BoutReal delta) {
   static InvertPar *inv = NULL;
   if(!inv) {
