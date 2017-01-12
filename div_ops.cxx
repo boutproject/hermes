@@ -526,7 +526,7 @@ const Field3D Div_Perp_Lap_XYZ(const Field3D &a, const Field3D &f, bool bndryflu
   return result;
 }
 
-const Field3D Div_Par_Diffusion(const Field3D &K, const Field3D &f, bool bndry_flux) {
+const Field3D Div_par_diffusion(const Field3D &K, const Field3D &f, bool bndry_flux) {
   Field3D result;
   result = 0.0;
   
@@ -560,7 +560,77 @@ const Field3D Div_Par_Diffusion(const Field3D &K, const Field3D &f, bool bndry_f
   return result;
 }
 
-const Field3D Div_Par_Diffusion_Index(const Field3D &f, bool bndry_flux) {
+const Field3D Div_par_spitzer(BoutReal K0, const Field3D &Te, bool bndry_flux) {
+  Field3D result;
+  result = 0.0;
+
+  for(int i=mesh->xstart;i<=mesh->xend;i++)
+    for(int j=mesh->ystart-1;j<=mesh->yend;j++)
+      for(int k=0;k<mesh->ngz-1;k++) {
+        // Calculate flux at upper surface
+
+        if(!bndry_flux && !mesh->periodicY(i)) {
+          if((j == mesh->yend) && mesh->lastY(i))
+            continue;
+
+          if((j == mesh->ystart-1) && mesh->firstY(i))
+            continue;
+        }
+
+	BoutReal Te0 = 0.5*(Te(i,j,k) + Te(i,j+1,k)); // Te at the upper boundary
+        BoutReal K = K0*pow(Te0,2.5);
+        BoutReal J = 0.5*(mesh->J(i,j) + mesh->J(i,j+1)); // Jacobian at boundary
+
+        BoutReal g_22 = 0.5*(mesh->g_22(i,j) + mesh->g_22(i,j+1));
+
+        BoutReal gradient = 2.*(Te(i,j+1,k) - Te(i,j,k)) / (mesh->dy(i,j) + mesh->dy(i,j+1));
+
+        BoutReal flux = K * J * gradient / g_22;
+
+        result(i,j,k) += flux / (mesh->dy(i,j) * mesh->J(i,j));
+        result(i,j+1,k) -= flux / (mesh->dy(i,j+1) * mesh->J(i,j+1));
+      }
+  return result;
+}
+
+const Field3D Div_par_diffusion_upwind(const Field3D &K, const Field3D &f, bool bndry_flux) {
+  Field3D result;
+  result = 0.0;
+  
+  for(int i=mesh->xstart;i<=mesh->xend;i++)
+    for(int j=mesh->ystart-1;j<=mesh->yend;j++)
+      for(int k=0;k<mesh->ngz-1;k++) {
+        // Calculate flux at upper surface
+        
+        if(!bndry_flux && !mesh->periodicY(i)) {
+          if((j == mesh->yend) && mesh->lastY(i))
+            continue;
+        
+          if((j == mesh->ystart-1) && mesh->firstY(i))
+            continue;
+        }
+        BoutReal J = 0.5*(mesh->J(i,j) + mesh->J(i,j+1)); // Jacobian at boundary
+        
+        BoutReal g_22 = 0.5*(mesh->g_22(i,j) + mesh->g_22(i,j+1));
+        
+        BoutReal gradient = 2.*(f(i,j+1,k) - f(i,j,k)) / (mesh->dy(i,j) + mesh->dy(i,j+1));
+        
+        BoutReal c; // K at the upper boundary
+        if(gradient > 0.0) {
+          c = K(i,j+1,k);
+        }else {
+          c = K(i,j,k);
+        }
+        
+        BoutReal flux = c * J * gradient / g_22;
+        
+        result(i,j,k) += flux / (mesh->dy(i,j) * mesh->J(i,j));
+        result(i,j+1,k) -= flux / (mesh->dy(i,j+1) * mesh->J(i,j+1));
+      }
+  return result;
+}
+
+const Field3D Div_par_diffusion_index(const Field3D &f, bool bndry_flux) {
   Field3D result;
   result = 0.0;
   
@@ -610,7 +680,7 @@ const Field3D AddedDissipation(const Field3D &N, const Field3D &P, const Field3D
           if((j >= mesh->yend) && mesh->lastY(i))
             continue;
           
-          if((j < mesh->ystart) && mesh->firstY(i))
+          if((j <= mesh->ystart) && mesh->firstY(i))
             continue;
         }
         
@@ -661,6 +731,23 @@ void Upwind(Stencil1D &n, const BoutReal h) {
 void Fromm(Stencil1D &n, const BoutReal h) {
   n.L = n.c - 0.25*(n.p - n.m);
   n.R = n.c + 0.25*(n.p - n.m);
+}
+
+BoutReal minmod(BoutReal a, BoutReal b) {
+  if( a*b <= 0.0 )
+    return 0.0;
+  
+  if(fabs(a) < fabs(b))
+    return a;
+  return b;
+}
+
+void MinMod(Stencil1D &n, const BoutReal h) {
+  // Choose the gradient within the cell
+  // as the minimum (smoothest) solution
+  BoutReal slope = minmod(n.p - n.c, n.c - n.m);
+  n.L = n.c - 0.5*slope; //0.25*(n.p - n.m);
+  n.R = n.c + 0.5*slope; //0.25*(n.p - n.m);
 }
 
 void XPPM(Stencil1D &n, const BoutReal h) {
@@ -1498,6 +1585,81 @@ const Field3D Div_par_FV(const Field3D &f, const Field3D &v) {
     if(!(mesh->firstY() && mesh->lastY()))
       throw BoutException("Not implemented for NYPE > 1");
   }
+  return result;
+}
+
+const Field3D Div_par_FV_FS(const Field3D &f, const Field3D &v, const Field3D &a) {
+  // Finite volume parallel divergence
+  Field3D result = 0.0;
+
+  // Calculate in guard cells
+  int ys = mesh->ystart-1;
+  int ye = mesh->yend+1;
+  
+  for(int i=mesh->xstart;i<=mesh->xend;i++)
+    for(int j=ys;j<=ye;j++) {
+      for(int k=0;k<mesh->ngz-1;k++) {
+        
+        // Right boundary
+
+        // Reconstruct f at the cell faces
+        Stencil1D s;
+        s.c  = f(i,j,  k);
+        s.m  = f(i,j-1,k);
+        s.p  = f(i,j+1,k);
+        
+        //Upwind(s, mesh->dy(i,j));  // 1st order accurate
+        //Fromm(s, mesh->dy(i,j));     // 2nd order, some upwinding
+        MinMod(s, mesh->dy(i,j));  // Slope limiter
+        
+        // Calculate velocity at right boundary (y+1/2)
+        BoutReal vpar = 0.5*(v(i,j,k) + v(i,j+1,k));
+        
+        // Maximum wave speed in the two cells
+        BoutReal amax = BOUTMAX(a(i,j,k), a(i,j+1,k));
+        
+        BoutReal flux;
+        
+        if(vpar > amax) {
+          // Supersonic flow out of this cell
+          flux = s.R * vpar;
+        }else if(vpar < -amax) {
+          // Supersonic flow into this cell
+          flux = 0.0;
+        }else {
+          // Subsonic flow, so a mix of right and left fluxes
+          flux = s.R * 0.5*(vpar + amax);
+        }
+        
+        flux *= (mesh->J(i,j) + mesh->J(i,j+1)) / (sqrt(mesh->g_22(i,j))+ sqrt(mesh->g_22(i,j+1)));
+
+        result(i,j,k)   += flux / (mesh->dy(i,j)*mesh->J(i,j));
+        result(i,j+1,k) -= flux / (mesh->dy(i,j+1)*mesh->J(i,j+1));
+        
+        // Calculate at left boundary
+        vpar = 0.5*(v(i,j,k) + v(i,j-1,k));
+        
+        // Maximum wave speed in the two cells
+        amax = BOUTMAX(a(i,j,k), a(i,j+1,k));
+        
+        if(vpar < -amax) {
+          // Supersonic out of this cell
+          flux = s.L * vpar;
+        }else if(vpar > amax) {
+          // Supersonic into this cell
+          flux = 0.0;
+        }else {
+          flux = s.L * 0.5*(vpar - amax);
+        }
+        
+        flux *= (mesh->J(i,j) + mesh->J(i,j-1)) / (sqrt(mesh->g_22(i,j)) + sqrt(mesh->g_22(i,j-1)));
+          
+        result(i,j,k)   -= flux / (mesh->dy(i,j)*mesh->J(i,j));
+        result(i,j-1,k) += flux / (mesh->dy(i,j-1)*mesh->J(i,j-1));
+        
+      }
+      
+    }
   return result;
 }
 

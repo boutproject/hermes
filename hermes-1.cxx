@@ -1774,7 +1774,7 @@ int Hermes::rhs(BoutReal t) {
   if(low_n_diffuse) {
     // Diffusion which kicks in at very low density, in order to 
     // help prevent negative density regions
-    ddt(Ne) += Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22*1e-4/Nelim, Ne, false);
+    ddt(Ne) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*1e-4/Nelim, Ne, false);
   }
 
   ///////////////////////////////////////////////////////////
@@ -1851,7 +1851,7 @@ int Hermes::rhs(BoutReal t) {
       
       if(ExBpar) {
         ddt(Vort) += ExBdiff * Div_Perp_Lap_XYZ(SQ(mesh->dx)*mesh->g_11, Vort, vort_bndry_flux);
-        //ddt(Vort) += ExBdiff * Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22, Vort);
+        //ddt(Vort) += ExBdiff * Div_par_diffusion(SQ(mesh->dy)*mesh->g_22, Vort);
       }else {
         ddt(Vort) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, Vort, vort_bndry_flux);
       }
@@ -1926,7 +1926,7 @@ int Hermes::rhs(BoutReal t) {
         mesh->communicate(ve_eta);
         ve_eta.applyBoundary("neumann");
       }
-      ddt(VePsi) += Div_Par_Diffusion( ve_eta, Ve);
+      ddt(VePsi) += Div_par_diffusion( ve_eta, Ve);
       
     }
     
@@ -1938,8 +1938,8 @@ int Hermes::rhs(BoutReal t) {
     }
 
     if(numdiff > 0.0) {
-      ddt(VePsi) += Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22*mi_me*numdiff, Ve);
-      //ddt(VePsi) -= Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22*mi_me*numdiff*mesh->Bxy/NelimVe, Jpar/mesh->Bxy);
+      ddt(VePsi) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*mi_me*numdiff, Ve);
+      //ddt(VePsi) -= Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*mi_me*numdiff*mesh->Bxy/NelimVe, Jpar/mesh->Bxy);
     }
     
     if(hyper > 0.0) {
@@ -1975,7 +1975,7 @@ int Hermes::rhs(BoutReal t) {
       ddt(NVi) += Dvi*Div_Perp_Lap_x3(Ne, Vi, false);
     
     if(numdiff > 0.0) {
-      ddt(NVi) += Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22*numdiff, Vi);
+      ddt(NVi) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*numdiff, Vi);
     }
     
     if(density_inflow) {
@@ -1998,7 +1998,7 @@ int Hermes::rhs(BoutReal t) {
       
       if(ExBpar) {
         ddt(NVi) += ExBdiff * Div_Perp_Lap_XYZ(SQ(mesh->dx)*mesh->g_11, NVi, ne_bndry_flux);
-        //ddt(NVi) += ExBdiff * Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22, NVi);
+        //ddt(NVi) += ExBdiff * Div_par_diffusion(SQ(mesh->dy)*mesh->g_22, NVi);
       }else {
         ddt(NVi) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, NVi, ne_bndry_flux);
       }
@@ -2034,7 +2034,7 @@ int Hermes::rhs(BoutReal t) {
   
   // Parallel heat conduction
   if(thermal_conduction) {
-    ddt(Pe) += (2./3)*Div_Par_Diffusion(kappa_epar, Te);
+    ddt(Pe) += (2./3)*Div_par_diffusion(kappa_epar, Te);
   }
   
   if(thermal_flux) {
@@ -2872,11 +2872,11 @@ int Hermes::rhs(BoutReal t) {
         - Grad_par(Pnlim)            // Pressure gradient
         + Div_Perp_Lap_XYZ(Dnn * NVn, logPnlim, false) // Perpendicular diffusion
         
-        + Div_Par_Diffusion(Dnn*Nn, Vn, false) // Parallel viscosity
+        + Div_par_diffusion(Dnn*Nn, Vn, false) // Parallel viscosity
         ;
         
       if(neut_numdiff > 0.0) {
-        ddt(NVn) += Div_Par_Diffusion(SQ(mesh->dy)*mesh->g_22*neut_numdiff, Vn);
+        ddt(NVn) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*neut_numdiff, Vn);
       }
       
       ddt(NVi) -= F;
@@ -2900,7 +2900,7 @@ int Hermes::rhs(BoutReal t) {
         + (2./3) * Q
         + Div_Perp_Lap_XYZ(Dnn * Pn, logPnlim, false) // Perpendicular diffusion
         + Div_Perp_Lap_XYZ(Dnn * Nn, Tn, false) // Conduction
-        + Div_Par_Diffusion(Dnn * Nn, Tn)       // Parallel conduction
+        + Div_par_diffusion(Dnn * Nn, Tn)       // Parallel conduction
         ;
       
       ddt(Pe) -= (2./3) * (Q + Rp);
@@ -3145,7 +3145,7 @@ const Field3D Hermes::D(const Field3D &f, BoutReal d) { // Diffusion operator
       return 0.0;
 
   return 
-    Div_Par_Diffusion(d*SQ(mesh->dy*mesh->g_22), f)
+    Div_par_diffusion(d*SQ(mesh->dy*mesh->g_22), f)
     //+ d*SQ(mesh->dx)*D2DX2(f)
     //+ Div_Perp_Lap_FV(d*SQ(mesh->dx*mesh->g_11), f, false)
     //+ Div_Perp_Lap_x3(d*SQ(mesh->dx), f, false)

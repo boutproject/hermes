@@ -43,11 +43,73 @@ const Field3D Div_Perp_Lap_x3(const Field3D &a, const Field3D &f, bool xflux=fal
 
 const Field3D Div_Perp_Lap_XYZ(const Field3D &a, const Field3D &f, bool bndryflux=false);
 
-// Divergence of a parallel diffusion k * Grad_par(f)
-const Field3D Div_Par_Diffusion(const Field3D &k, const Field3D &f, bool bndry_flux=true);
-const Field3D Div_Par_Diffusion_Index(const Field3D &f, bool bndry_flux=true);
 
-// Added Dissipation method. velocity proportional to 3rd derivative of the pressure
+/*!
+ * Parallel diffusion (in y)
+ *
+ * Calculated in terms of fluxes through cell faces. Takes the average
+ * coefficient K from the cells either side, and the gradient across the 
+ * boundary. Calculated flux is added to one cell, subtracted from the other.
+ *
+ * Div_par( K Grad_par(f) )
+ *
+ * @param[in] K The diffusion coefficient
+ * @param[in] f The variable to be differentiated
+ * @param[in] bndry_flux  Are fluxes calculated through Y boundaries?
+ *
+ */
+const Field3D Div_par_diffusion(const Field3D &k, const Field3D &f, bool bndry_flux=true);
+
+/*!
+ * Parallel heat conduction, assuming a heat conduction coefficient
+ * K which depends on the temperature Te^2.5
+ * 
+ * Div_par( K0 Te^2.5 Grad_par(Te) )
+ *
+ * To calculate K0*Te^2.5 the temperature is averaged from cell centre
+ * to cell boundary.
+ *
+ * @param[in] K0  Constant coefficient in the conductivity
+ * @param[in] Te  Temperature
+ * @param[in] bndry_flux  Are fluxes through the boundary calculated?
+ */
+const Field3D Div_par_spitzer(BoutReal K0, const Field3D &Te, bool bndry_flux=true);
+
+/*!
+ * Diffusion using upwinding of the conduction coefficient
+ *
+ * Depending on the sign of the gradient, the value of K from the 
+ * "upwind" side is used in calculating the flux, rather than taking 
+ * the average of upstream and downstream sides. 
+ *
+ * Div_par( K Grad_par(f) )
+ * 
+ * @param[in] K  The diffusion coefficient
+ * @param[in] f  The variable which is differentiated
+ * @param[in] bndry_flux   Are boundary fluxes calculated?
+ */
+const Field3D Div_par_diffusion_upwind(const Field3D &K, const Field3D &f, bool bndry_flux=true);
+
+/*!
+ * Diffusion in index space
+ * 
+ * Similar to using Div_par_diffusion(SQ(mesh->dy)*mesh->g_22, f)
+ *
+ * @param[in] The field to be differentiated
+ * @param[in] bndry_flux  Are fluxes through the boundary calculated?
+ */
+const Field3D Div_par_diffusion_index(const Field3D &f, bool bndry_flux=true);
+
+/*!
+ * Added Dissipation scheme (related to Momentum Interpolation)
+ *
+ * This uses a 3rd-order derivative of the pressure as
+ * a correction to the velocity. 
+ *
+ * This should appear in the form
+ * 
+ * df/dt = ... + AddedDissipation(N, P, f);
+ */
 const Field3D AddedDissipation(const Field3D &N, const Field3D &P, const Field3D f, bool bndry_flux=true);
 
 const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n, const Field3D &f, bool bndry_flux=true, bool poloidal=false, bool positive=false);
@@ -59,11 +121,39 @@ void communicateFluxes(Field3D &f);
 const Field3D Div_Perp_Lap_FV(const Field3D &n, const Field3D &f, bool xflux);
 const Field3D Div_Perp_Lap_FV_Index(const Field3D &a, const Field3D &f, bool xflux);
 
+/*!
+ * Finite volume parallel divergence
+ *
+ * Assumes there are (at least) two guard cells (MYG >= 2)
+ * 
+ * @param[in] f  The field being advected
+ * @param[in] v  The advection velocity
+ */
 const Field3D Div_par_FV(const Field3D &f, const Field3D &v);
+
+/*!
+ * Parallel divergence, flux splitting version
+ *
+ * @param[in] f   The field being advected
+ * @param[in] v   The advection velocity
+ * @param[in] a   Maximum wave speed. Used to determine the amount of upwinding
+ *
+ * Split into fluxes with speed v+a and v-a
+ */
+const Field3D Div_par_FV_FS(const Field3D &f, const Field3D &v, const Field3D &a);
 
 // Finite volume parallel divergence of a flow velocity
 const Field3D Div_parV_FV(const Field3D &v);
 
+/*!
+ * 4th-order derivative
+ *
+ * Implemented as a flux through cell boundaries, calculated
+ * using one-sided 3rd derivative at the boundary.
+ *
+ * @param[in]  d  Coefficient, averaged from neighbouring cells
+ * @param[in]  f  The field being differentiated
+ */
 const Field3D D4DY4_FV(const Field3D &d, const Field3D &f, bool bndry_flux=false);
 
 // 4th-order flux conserving term, in index space
