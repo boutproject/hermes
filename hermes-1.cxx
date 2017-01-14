@@ -128,8 +128,10 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, ADpar_phine, false);
   OPTION(optsc, ADpar_bndry, false);
   OPTION(optsc, low_pass_z, -1);
-  OPTION(optsc, z_hyper_viscos, -1.0);
   OPTION(optsc, x_hyper_viscos, -1.0);
+  OPTION(optsc, y_hyper_viscos, -1.0);
+  OPTION(optsc, z_hyper_viscos, -1.0);
+
   OPTION(optsc, low_n_diffuse, true);
 
   OPTION(optsc, resistivity_multiply, 1.0);
@@ -784,6 +786,9 @@ int Hermes::rhs(BoutReal t) {
   // for vorticity, phi = 0 and jpar = 0
   bool currents = j_par | j_diamag;
   
+  // Local sound speed. Used for parallel advection operator
+  Field3D sound_speed = sqrt(Telim*(5./3));
+
   //////////////////////////////////////////////////////////////
   // Calculate electrostatic potential phi
   //
@@ -1685,7 +1690,8 @@ int Hermes::rhs(BoutReal t) {
 
   // Parallel flow
   if(parallel_flow) {
-    ddt(Ne) -= Div_parP_LtoC(Ne, Ve);
+    //ddt(Ne) -= Div_parP_LtoC(Ne, Ve);
+    ddt(Ne) -= Div_par_FV_FS(Ne, Ve, sqrt(mi_me)*sound_speed);
   }
   
   if(j_diamag) {
@@ -1791,7 +1797,8 @@ int Hermes::rhs(BoutReal t) {
 
     if(j_par) {
       // Parallel current
-      ddt(Vort) += Div_par(Jpar);
+      //ddt(Vort) += Div_par(Jpar);
+      ddt(Vort) += 0.5*(Div_par(Jpar) + Ne*Div_par(Vi-Ve) + (Vi-Ve)*Grad_par(Ne));
     }    
     
     if(j_diamag) {
@@ -1856,7 +1863,7 @@ int Hermes::rhs(BoutReal t) {
         ddt(Vort) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, Vort, vort_bndry_flux);
       }
     }
-    
+
     if(ADpar > 0.0) {
       if(ADpar_phine) {
         ddt(Vort) -= ADpar * AddedDissipation(Ne, phi, Nelim, ADpar_bndry);
@@ -1872,6 +1879,11 @@ int Hermes::rhs(BoutReal t) {
       // Form of hyper-viscosity to suppress zig-zags in X
       ddt(Vort) -= x_hyper_viscos * D4DX4_FV_Index(Vort);
     }
+
+    if(y_hyper_viscos > 0) {
+      // Form of hyper-viscosity to suppress zig-zags in Y
+      ddt(Vort) -= y_hyper_viscos * D4DY4_FV_Index(Vort, false);
+    }
   }
   
   ///////////////////////////////////////////////////////////
@@ -1881,7 +1893,7 @@ int Hermes::rhs(BoutReal t) {
   
   ddt(VePsi) = 0.0;
 
-  Field3D NelimVe = Nelim; //floor(Ne, 1e-3);
+  Field3D NelimVe = Nelim; 
   
   if(currents && (electromagnetic || FiniteElMass)) {
     // Evolve VePsi except for electrostatic and zero electron mass case
@@ -1890,6 +1902,9 @@ int Hermes::rhs(BoutReal t) {
       ddt(VePsi) -= mi_me*nu*(Ve - Vi);
       //ddt(VePsi) += mi_me*nu*(Jpar - Jpar0)/floor(Ne,1e-5); // External electric field
     }
+
+    // Advection
+    //ddt(VePsi) -= Div_par_FV_FS(NelimVe*Ve, Ve, sqrt(mi_me)*sound_speed) / NelimVe;
     
     // Parallel electric field
     if(j_par) {
@@ -1938,7 +1953,8 @@ int Hermes::rhs(BoutReal t) {
     }
 
     if(numdiff > 0.0) {
-      ddt(VePsi) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*mi_me*numdiff, Ve);
+      ddt(VePsi) += sqrt(mi_me)*numdiff*Div_par_diffusion_index(Ve);
+      //ddt(VePsi) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*mi_me*numdiff, Ve);
       //ddt(VePsi) -= Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*mi_me*numdiff*mesh->Bxy/NelimVe, Jpar/mesh->Bxy);
     }
     
@@ -1959,7 +1975,8 @@ int Hermes::rhs(BoutReal t) {
     
     ddt(NVi) = -Div_n_bxGrad_f_B_XPPM(NVi, phi, ne_bndry_flux, poloidal_flows); // ExB drift
     
-    ddt(NVi) -= Div_parP_LtoC(NVi,Vi); // Parallel flow
+    //ddt(NVi) -= Div_parP_LtoC(NVi,Vi); // Parallel flow
+    ddt(NVi) -= Div_par_FV_FS(NVi,Vi, sound_speed);
     
     // Ignoring polarisation drift for now
     if(pe_par) {
@@ -1975,7 +1992,8 @@ int Hermes::rhs(BoutReal t) {
       ddt(NVi) += Dvi*Div_Perp_Lap_x3(Ne, Vi, false);
     
     if(numdiff > 0.0) {
-      ddt(NVi) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*numdiff, Vi);
+      ddt(NVi) += numdiff*Div_par_diffusion_index(Vi);
+      //ddt(NVi) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*numdiff, Vi);
     }
     
     if(density_inflow) {
@@ -2020,8 +2038,10 @@ int Hermes::rhs(BoutReal t) {
   
   // Divergence of heat flux due to ExB advection
   ddt(Pe) -= Div_n_bxGrad_f_B_XPPM(Pe, phi, pe_bndry_flux, poloidal_flows, true);
-  if(parallel_flow)
-    ddt(Pe) -= Div_parP_LtoC(Pe,Ve);  // Parallel flow
+  if(parallel_flow) {
+    //ddt(Pe) -= Div_parP_LtoC(Pe,Ve);  // Parallel flow
+    ddt(Pe) -= Div_par_FV_FS(Pe, Ve, sqrt(mi_me)*sound_speed);
+  }
   
   if(j_diamag) { // Diamagnetic flow
     // Magnetic drift (curvature) divergence.
@@ -2876,7 +2896,8 @@ int Hermes::rhs(BoutReal t) {
         ;
         
       if(neut_numdiff > 0.0) {
-        ddt(NVn) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*neut_numdiff, Vn);
+        ddt(NVn) += neut_numdiff*Div_par_diffusion_index(Vn);
+        //ddt(NVn) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*neut_numdiff, Vn);
       }
       
       ddt(NVi) -= F;

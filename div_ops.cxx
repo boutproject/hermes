@@ -1760,6 +1760,102 @@ const Field3D D4DY4_FV(const Field3D &d, const Field3D &f, bool bndry_flux) {
   return result;
 }
 
+/*
+ * 4th-order dissipation term
+ * 
+ *
+ * A one-sided 3rd-order derivative, given a value
+ * at a boundary is:
+ * 
+ * d3f/dx3 ~= 16/5 f_b - 6 f_0 + 4 f_1 - 6/5 f_2
+ * 
+ * where f_b is the value on the boundary; f_0 is the cell 
+ * to the left of the boundary; f_1 to the left of f_0 and f_2
+ * to the left of f_1
+ *
+ *    f_2 | f_1 | f_0 |
+ *                   f_b
+ */
+const Field3D D4DY4_FV_Index(const Field3D &f, bool bndry_flux) {
+  Field3D result = 0.0;
+
+  for(int i=mesh->xstart;i<=mesh->xend;i++)
+    for(int j=mesh->ystart;j<=mesh->yend;j++) {
+      for(int k=0;k<mesh->ngz-1;k++) {
+        
+        // 3rd derivative at right boundary
+        
+        BoutReal d3fdx3 = (
+                                f(i,j+2,k)
+                           - 3.*f(i,j+1,k)
+                           + 3.*f(i,j,  k)
+                           -    f(i,j-1,k)
+                                );
+        
+        BoutReal flux = 0.25*(mesh->dy(i,j) + mesh->dy(i,j+1)) * (mesh->J(i,j) + mesh->J(i,j+1)) * d3fdx3;
+        
+        if(mesh->lastY(i) && !mesh->periodicY(i) && (j == mesh->yend)) {
+          // Boundary? Only if not periodic
+          
+          if(bndry_flux) {
+            // Use a one-sided difference formula
+            
+            d3fdx3 = -( (16./5) * 0.5*( f(i,j+1,k) + f(i,j,  k) )  // Boundary value f_b
+                       - 6.*f(i,j,  k)  // f_0
+                       + 4.*f(i,j-1,k)  // f_1
+                       - (6./5)*f(i,j-2,k) // f_2
+                       );
+            
+            flux = 0.25*(mesh->dy(i,j) + mesh->dy(i,j+1))*(mesh->J(i,j) + mesh->J(i,j+1)) * d3fdx3;        
+            
+          }else {
+            // No fluxes through boundary
+            flux = 0.0;
+          }
+        }
+
+        result(i,j,  k) += flux / (mesh->J(i,j) * mesh->dy(i,j));
+        result(i,j+1,k) -= flux / (mesh->J(i,j+1) * mesh->dy(i,j+1));
+        
+        if(j == mesh->ystart) {
+          // Left cell boundary, flux through boundaries
+
+          if(mesh->firstY(i) && !mesh->periodicY(i)) {
+            // On a Y boundary (if not periodic)
+            
+            if(bndry_flux) {
+              d3fdx3 = -( - (16./5) * 0.5*( f(i,j-1,k) + f(i,j,  k) )  // Boundary value f_b
+                         + 6.*f(i,j,  k)  // f_0
+                         - 4.*f(i,j+1,k)  // f_1
+                         + (6./5)*f(i,j+2,k) // f_2
+                         );
+              
+              flux = 0.25*(mesh->dy(i,j) + mesh->dy(i,j+1))*(mesh->J(i,j) + mesh->J(i,j-1)) * d3fdx3;
+            
+              result(i,j,  k) -= flux / (mesh->J(i,j) * mesh->dy(i,j));
+              result(i,j-1,k) += flux / (mesh->J(i,j-1) * mesh->dy(i,j-1));
+            }
+            
+          }else {
+            // Not on a boundary
+            d3fdx3 = (
+                           f(i,j+1,k)
+                      - 3.*f(i,j,  k)
+                      + 3.*f(i,j-1,k)
+                      -    f(i,j-2,k)
+                      );
+            
+            flux = 0.25*(mesh->dy(i,j) + mesh->dy(i,j+1))*(mesh->J(i,j) + mesh->J(i,j-1)) * d3fdx3;
+            
+            result(i,j,  k) -= flux / (mesh->J(i,j) * mesh->dy(i,j));
+            result(i,j-1,k) += flux / (mesh->J(i,j-1) * mesh->dy(i,j-1));
+          }
+        }
+      }
+    }
+  return result;
+}
+
 const Field3D D4DX4_FV_Index(const Field3D &f_in, bool bndry_flux) {
   Field3D result = 0.0;
 

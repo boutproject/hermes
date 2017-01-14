@@ -218,7 +218,7 @@ private:
   bool ADpar_phine; // Include 1/Ne factor in phi ADpar term
   bool ADpar_bndry; // Boundaries included in ADpar?
   int low_pass_z; // Fourier filter in Z 
-  BoutReal z_hyper_viscos, x_hyper_viscos; // 4th-order derivatives in Z
+  BoutReal z_hyper_viscos, x_hyper_viscos, y_hyper_viscos; // 4th-order derivatives
   bool low_n_diffuse; // Diffusion at low density
   
   BoutReal resistivity_multiply; ///< Factor in front of nu

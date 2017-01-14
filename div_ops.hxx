@@ -156,6 +156,24 @@ const Field3D Div_parV_FV(const Field3D &v);
  */
 const Field3D D4DY4_FV(const Field3D &d, const Field3D &f, bool bndry_flux=false);
 
+/*
+ * 4th-order dissipation term
+ * 
+ *
+ * A one-sided 3rd-order derivative, given a value
+ * at a boundary is:
+ * 
+ * d3f/dx3 ~= 16/5 f_b - 6 f_0 + 4 f_1 - 6/5 f_2
+ * 
+ * where f_b is the value on the boundary; f_0 is the cell 
+ * to the left of the boundary; f_1 to the left of f_0 and f_2
+ * to the left of f_1
+ *
+ *    f_2 | f_1 | f_0 |
+ *                   f_b
+ */
+const Field3D D4DY4_FV_Index(const Field3D &f, bool bndry_flux=false);
+
 // 4th-order flux conserving term, in index space
 const Field3D D4DX4_FV_Index(const Field3D &f, bool bndry_flux=false);
 
