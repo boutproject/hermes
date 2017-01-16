@@ -220,7 +220,8 @@ private:
   int low_pass_z; // Fourier filter in Z 
   BoutReal z_hyper_viscos, x_hyper_viscos, y_hyper_viscos; // 4th-order derivatives
   bool low_n_diffuse; // Diffusion at low density
-  
+  BoutReal ne_hyper_z, pe_hyper_z; // Hyper-diffusion
+ 
   BoutReal resistivity_multiply; ///< Factor in front of nu
   
   // Sources and profiles

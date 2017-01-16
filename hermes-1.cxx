@@ -132,6 +132,9 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, y_hyper_viscos, -1.0);
   OPTION(optsc, z_hyper_viscos, -1.0);
 
+  OPTION(optsc, ne_hyper_z, -1.0);
+  OPTION(optsc, pe_hyper_z, -1.0);
+
   OPTION(optsc, low_n_diffuse, true);
 
   OPTION(optsc, resistivity_multiply, 1.0);
@@ -1707,7 +1710,9 @@ int Hermes::rhs(BoutReal t) {
   if(density_diffusion) {
     // perpendicular diffusion
     Dn = (1. + 1.3*SQ(neoclassical_q)) * 2. / (tau_e0*Omega_ci * mi_me);
-    
+//    output.write("\n Dn : %e -> %e\n", min(Dn), max(Dn));
+//    output.write("\n g11/dx^2 = %e -> %e\n",min(mesh->g11/SQ(mesh->dx)), max(mesh->g11/SQ(mesh->dx)));
+//    output.write("\n g33/dz^2 = %e -> %e\n",min(mesh->g33/SQ(mesh->dz)), max(mesh->g33/SQ(mesh->dz)));
     ddt(Ne) += Div_Perp_Lap_FV(Dn, Ne, ne_bndry_flux);
     //ddt(Ne) += Div_Perp_Lap_XYZ(Dn, Ne, ne_bndry_flux);
   }
@@ -1783,6 +1788,10 @@ int Hermes::rhs(BoutReal t) {
     ddt(Ne) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*1e-4/Nelim, Ne, false);
   }
 
+  if(ne_hyper_z > 0.) {
+    ddt(Ne) -= ne_hyper_z*SQ(SQ(mesh->dz))*D4DZ4(Ne);
+  }
+
   ///////////////////////////////////////////////////////////
   // Vorticity
   // This is the current continuity equation
@@ -1837,8 +1846,9 @@ int Hermes::rhs(BoutReal t) {
     
     if(ion_viscosity) {
       Field3D mu = 0.75*(1.+1.6*SQ(neoclassical_q))/tau_i;
-      //ddt(Vort) += Div_Perp_Lap_FV( mu, Vort, vort_bndry_flux);
-      ddt(Vort) += Div_Perp_Lap_XYZ( mu, Vort, vort_bndry_flux);
+      ddt(Vort) += Div_Perp_Lap_FV( mu, Vort, vort_bndry_flux);
+      //output.write("\nmu: %e -> %e\n", min(mu), max(mu));
+      //ddt(Vort) += Div_Perp_Lap_XYZ( mu, Vort, vort_bndry_flux);
     }
 
     if(anomalous_nu > 0.0) {
@@ -2065,6 +2075,10 @@ int Hermes::rhs(BoutReal t) {
   if(currents && resistivity) {
     // Ohmic heating
     ddt(Pe) += nu*Jpar*(Jpar - Jpar0)/Nelim;
+  }
+
+  if(pe_hyper_z > 0.0) {
+    ddt(Pe) -= pe_hyper_z*SQ(SQ(mesh->dz))*D4DZ4(Pe);
   }
 
   ///////////////////////////////////
