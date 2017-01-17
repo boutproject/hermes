@@ -106,9 +106,7 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, sheath_closure, true);
   OPTION(optsc, drift_wave, false);
 
-  OPTION(optsc, density_diffusion, false);
-  OPTION(optsc, thermal_diffusion, false);
-  OPTION(optsc, ion_viscosity, false);
+  OPTION(optsc, classical_diffusion, false);
   OPTION(optsc, neoclassical_q, 0);
   OPTION(optsc, anomalous_D, -1);
   OPTION(optsc, anomalous_chi, -1);
@@ -881,7 +879,7 @@ int Hermes::rhs(BoutReal t) {
   
   tau_e = (Cs0/rho_s0)*tau_e0 * (Telim^1.5)/Nelim; // Normalised electron collision time
   
-  tau_i = (Cs0/rho_s0)*tau_i0 * pow(Ti,1.5)/Nelim; // Normalised ion collision time
+  tau_i = (Cs0/rho_s0)*tau_i0 * pow(Ti,1.5)/Nelim; // Normalised ion-ion collision time
   
   {
   // Smooth tau_e by averaging over nearby grid cells in X and Z
@@ -1707,13 +1705,16 @@ int Hermes::rhs(BoutReal t) {
     ddt(Ne) += NeTarget / ramp_timescale;
   }
   
-  if(density_diffusion) {
-    // perpendicular diffusion
-    Dn = (1. + 1.3*SQ(neoclassical_q)) * 2. / (tau_e0*Omega_ci * mi_me);
+  if(classical_diffusion) {
+    // Classical perpendicular diffusion
+    //Dn = (1. + 1.3*SQ(neoclassical_q)) * 2. / (tau_e0*Omega_ci * mi_me);
+    
+    Dn = (Telim + Ti) / ( tau_e * mi_me * SQ(mesh->Bxy) );
 //    output.write("\n Dn : %e -> %e\n", min(Dn), max(Dn));
 //    output.write("\n g11/dx^2 = %e -> %e\n",min(mesh->g11/SQ(mesh->dx)), max(mesh->g11/SQ(mesh->dx)));
 //    output.write("\n g33/dz^2 = %e -> %e\n",min(mesh->g33/SQ(mesh->dz)), max(mesh->g33/SQ(mesh->dz)));
     ddt(Ne) += Div_Perp_Lap_FV(Dn, Ne, ne_bndry_flux);
+    ddt(Ne) -= Div_Perp_Lap_FV(0.5*Ne / ( tau_e * mi_me * SQ(mesh->Bxy) ), Te, ne_bndry_flux);
     //ddt(Ne) += Div_Perp_Lap_XYZ(Dn, Ne, ne_bndry_flux);
   }
   if(anomalous_D > 0.0) {
@@ -1844,13 +1845,14 @@ int Hermes::rhs(BoutReal t) {
       ddt(Vort) += Div_Perp_Lap_FV( (0.5*dnidt)/SQ(mesh->Bxy), phi, vort_bndry_flux);
     }
     
-    if(ion_viscosity) {
-      Field3D mu = 0.75*(1.+1.6*SQ(neoclassical_q))/tau_i;
+    if(classical_diffusion) {
+      ///Field3D mu = 0.75*(1.+1.6*SQ(neoclassical_q))/tau_i;
+      Field3D mu = 0.3 * Ti/(tau_i * SQ(mesh->Bxy));
       ddt(Vort) += Div_Perp_Lap_FV( mu, Vort, vort_bndry_flux);
       //output.write("\nmu: %e -> %e\n", min(mu), max(mu));
       //ddt(Vort) += Div_Perp_Lap_XYZ( mu, Vort, vort_bndry_flux);
     }
-
+    
     if(anomalous_nu > 0.0) {
       // Perpendicular anomalous momentum diffusion
       ddt(Vort) += Div_Perp_Lap_FV( anomalous_nu, Vort.DC(), vort_bndry_flux);
@@ -2014,8 +2016,7 @@ int Hermes::rhs(BoutReal t) {
       ddt(NVi) += NeSource * (NeSource/Ne) * mesh->dy * sqrt(mesh->g_22);
     }
 
-    if(density_diffusion) {
-      //ddt(NVi) += Div_Perp_Lap_XYZ(Vi*Dn, Ne, ne_bndry_flux);
+    if(classical_diffusion) {
       ddt(NVi) += Div_Perp_Lap_FV(Vi*Dn, Ne, ne_bndry_flux);
     }
     if(anomalous_D > 0.0) {
@@ -2163,15 +2164,14 @@ int Hermes::rhs(BoutReal t) {
   //////////////////////
   // Classical diffusion
   
-  if(density_diffusion) {
-    // perpendicular diffusion of particles carrying heat 
-    ddt(Pe) += Div_Perp_Lap_FV(Te*Dn, Ne, ne_bndry_flux);
-    //ddt(Pe) += Div_Perp_Lap_XYZ(Te*Dn, Ne, ne_bndry_flux);
-  }
-  
-  if(thermal_diffusion) {
-    ddt(Pe) += Div_Perp_Lap_FV(Ne*5*Dn, Te, pe_bndry_flux);
-    //ddt(Pe) += Div_Perp_Lap_XYZ(Ne*5*Dn, Te, pe_bndry_flux);
+  if(classical_diffusion) {
+    // nu_rho2 = nu_ei * rho_e^2 in normalised units
+    Field3D nu_rho2 = Telim/( tau_e * mi_me * SQ(mesh->Bxy) );
+    
+    ddt(Pe) += (2./3) * (
+                         Div_Perp_Lap_FV(nu_rho2, Pe, pe_bndry_flux)
+                         + (11./12)*Div_Perp_Lap_FV(nu_rho2*Ne, Te, pe_bndry_flux)
+                          );
   }
 
   //////////////////////

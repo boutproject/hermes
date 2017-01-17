@@ -147,9 +147,7 @@ private:
   bool thermal_flux;    // Include parallel and perpendicular energy flux from Te gradients
   bool thermal_conduction; // Braginskii electron heat conduction
   
-  bool density_diffusion; // Collisional diffusion
-  bool thermal_diffusion; // Collisional thermal diffusion
-  bool ion_viscosity;     // Collisional viscosity
+  bool classical_diffusion; // Collisional diffusion, including viscosity
   
   BoutReal neoclassical_q; // Enhances diffusion coefficients
   
