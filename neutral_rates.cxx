@@ -26,6 +26,7 @@
  */
 
 #include "hermes-1.hxx"
+#include <bout/assert.hxx>
 
 void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &Vi,    // Plasma quantities
                       const Field3D &Nn, const Field3D &Tn, const Field3D &Vnpar, // Neutral gas
@@ -83,6 +84,10 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
         BoutReal R_cx_C = Ne_C*Nn_C*hydrogen.chargeExchange(Te_C*Tnorm) * (Nnorm / Omega_ci);
         BoutReal R_cx_R = Ne_R*Nn_R*hydrogen.chargeExchange(Te_R*Tnorm) * (Nnorm / Omega_ci);
         
+        ASSERT2(finite(R_cx_L));
+        ASSERT2(finite(R_cx_C));
+        ASSERT2(finite(R_cx_R));
+        
         // Power transfer from plasma to neutrals
         // Factor of 3/2 to convert temperature to energy
         
@@ -106,6 +111,9 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
                       +      J_R * R_cx_R
                       ) / (6. * J_C);
         
+        // Check that the value is finite
+        ASSERT1(finite(Rcx(i,j,k)));
+
         ///////////////////////////////////////
         // Recombination
         
@@ -113,6 +121,10 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
         BoutReal R_rc_C  = hydrogen.recombination(Ne_C*Nnorm, Te_C*Tnorm)*SQ(Ne_C) * Nnorm / Omega_ci;
         BoutReal R_rc_R  = hydrogen.recombination(Ne_R*Nnorm, Te_R*Tnorm)*SQ(Ne_R) * Nnorm / Omega_ci;
         
+        ASSERT2(finite(R_rc_L));
+        ASSERT2(finite(R_rc_C));
+        ASSERT2(finite(R_rc_R));
+
         // Radiated power from plasma
         // Factor of 1.09 so that recombination becomes an energy source at 5.25eV
         R(i,j,k) = (
@@ -149,12 +161,18 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
                       +      J_R * R_rc_R
                       ) / (6. * J_C);
         
+        ASSERT1(finite(Rrc(i,j,k)));
+        
         ///////////////////////////////////////      
         // Ionisation
         
         BoutReal R_iz_L = Ne_L*Nn_L*hydrogen.ionisation(Te_L*Tnorm) * Nnorm / Omega_ci;
         BoutReal R_iz_C = Ne_C*Nn_C*hydrogen.ionisation(Te_C*Tnorm) * Nnorm / Omega_ci;
         BoutReal R_iz_R = Ne_R*Nn_R*hydrogen.ionisation(Te_R*Tnorm) * Nnorm / Omega_ci;
+        
+        ASSERT2(finite(R_iz_L));
+        ASSERT2(finite(R_iz_C));
+        ASSERT2(finite(R_iz_R));
         
         // Neutral sink, plasma source
         S(i,j,k) -=  (
@@ -191,6 +209,6 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
                       +      J_R * R_iz_R
                       ) / (6. * J_C);
         
-            
+        ASSERT1(finite(Riz(i,j,k)));    
       }
 }
