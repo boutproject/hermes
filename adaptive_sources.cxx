@@ -24,7 +24,7 @@ void AdaptiveSource::init(const string &prefix, const Field2D &start, Options *o
   
   if(!restarting) {
     // Set this so that te starting source = profile
-    error_integral = 1./controller_i;
+    error_integral = 0.0;
   }
   
   // Cache the cell volume, as this is used every time
@@ -72,7 +72,7 @@ const Field2D AdaptiveSource::get(const Field2D &var, const Field2D &target, Bou
   last_error = error;
   last_time = time;
   
-  BoutReal source_multiplier = controller_p * error + controller_i * error_integral;
+  BoutReal source_multiplier = 1.0 + controller_p * error + controller_i * error_integral;
   
   return source_multiplier * profile;
 }
