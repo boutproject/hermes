@@ -229,10 +229,17 @@ private:
   Field2D NeTarget, PeTarget; // For adaptive sources
   
   bool adapt_source; // Use a PI controller to feedback profiles
+  bool adapt_fix_form; // Fix the form of the source
   bool core_sources; // Sources only in the core
   bool energy_source; // Add the same amount of energy to each particle
   BoutReal source_p, source_i;  // Proportional-Integral controller
   Field2D Sn, Spe; // Sources in density and Pe
+  BoutReal total_Sn, total_Spe; // Sum over all cells
+  Field3D NeSource, PeSource; // These are the actual source added
+  
+  BoutReal density_error_lasttime, density_error_last, density_error_integral;
+  BoutReal pe_error_lasttime, pe_error_last, pe_error_integral;
+  
   bool density_inflow;  // Does incoming density have momentum?
   
   bool pe_bndry_flux;   // Allow flux of pe through radial boundaries

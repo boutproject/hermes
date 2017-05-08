@@ -342,6 +342,7 @@ int Hermes::init(bool restarting) {
   Ti /= Tnorm; // Normalise
   
   OPTION(optsc, adapt_source, false);
+  
   if(adapt_source) {
     // Adaptive sources to match profiles
 
@@ -349,13 +350,48 @@ int Hermes::init(bool restarting) {
     OPTION(optsc, source_p, 1e-2);
     OPTION(optsc, source_i, 1e-6);
 
-    Field2D Snsave = copy(Sn);
-    Field2D Spesave = copy(Spe);
-    SOLVE_FOR2(Sn, Spe);
-    Sn = Snsave;
-    Spe = Spesave;
+    // Save the actual source added
+    SAVE_REPEAT(NeSource);
     
-  }else {
+    OPTION(optsc, adapt_fix_form, false);
+    if (adapt_fix_form) {
+      // Fix the form of the source, changing amplitude
+      // Sum over the grid, for later normalisation
+      total_Sn = total_Spe = 0.0;
+      for(int i=0;i<mesh->ngx;i++) {
+        for(int j=0;j<mesh->ngy;j++) {
+          total_Sn += Sn(i,j);
+          total_Spe += Spe(i,j);
+        }
+      }
+      BoutReal values[2];
+      values[0] = total_Sn; values[1] = total_Spe;
+      MPI_Allreduce(values, values, 2, MPI_DOUBLE, MPI_SUM, BoutComm::get());
+      total_Sn = values[0]; total_Spe = values[1];
+
+      
+      density_error_lasttime = -1.0; // signal no value
+      solver->addToRestart(density_error_integral, "density_error_integral");
+
+      pe_error_lasttime = -1.0;
+      solver->addToRestart(pe_error_integral, "pe_error_integral");
+      
+      if (!restarting) {
+        density_error_integral = 1./source_i;
+        pe_error_integral = 1./source_i;
+      }
+      
+    } else {
+      // Evolving the source profiles
+      
+      Field2D Snsave = copy(Sn);
+      Field2D Spesave = copy(Spe);
+      SOLVE_FOR2(Sn, Spe);
+      Sn = Snsave;
+      Spe = Spesave;
+      
+    }
+  } else {
     SAVE_ONCE2(Sn, Spe);
   }
   
@@ -756,8 +792,8 @@ int Hermes::init(bool restarting) {
   return 0;
 }
 
-int Hermes::rhs(BoutReal t) {
-  //printf("TIME = %e\r", t);
+int Hermes::rhs(BoutReal time) {
+  //printf("TIME = %e\r", time);
 
   if(!evolve_plasma) {
     Ne = 0.0;
@@ -869,7 +905,7 @@ int Hermes::rhs(BoutReal t) {
         phi = phiSolver->solve(Vort*SQ(mesh->Bxy)/Nelim, sheathmult*Telim);
       }
     }
-    phi.applyBoundary(t);
+    phi.applyBoundary(time);
     mesh->communicate(phi);
   }
   
@@ -967,7 +1003,7 @@ int Hermes::rhs(BoutReal t) {
     }
   }
   
-  nu.applyBoundary(t);
+  nu.applyBoundary(time);
   
   //////////////////////////////////////////////////////////////
   // Calculate perturbed magnetic field psi
@@ -1008,11 +1044,11 @@ int Hermes::rhs(BoutReal t) {
         
         Ve = VePsi - 0.5*mi_me*beta_e*psi + Vi;
 
-        Ve.applyBoundary(t);
+        Ve.applyBoundary(time);
         mesh->communicate(Ve, psi);
         
         Jpar = Ne*(Vi - Ve);
-        Jpar.applyBoundary(t);
+        Jpar.applyBoundary(time);
         
       }else {
         // Zero electron mass
@@ -1025,7 +1061,7 @@ int Hermes::rhs(BoutReal t) {
         //Jpar = Div_Perp_Lap_XYZ(1.0, psi, true);
         mesh->communicate(Jpar);
         
-        Jpar.applyBoundary(t);
+        Jpar.applyBoundary(time);
         Ve = (NVi - Jpar) / Nelim;
       }
       
@@ -1049,7 +1085,7 @@ int Hermes::rhs(BoutReal t) {
         
       }
 
-      Ve.applyBoundary(t);
+      Ve.applyBoundary(time);
       // Communicate auxilliary variables
       mesh->communicate(Ve);
       
@@ -1655,8 +1691,8 @@ int Hermes::rhs(BoutReal t) {
       BoutReal xnorm = mesh->GlobalX(idwn.ind);
       BoutReal ynorm = 0.5*(mesh->GlobalY(mesh->ystart) + mesh->GlobalY(mesh->ystart-1));
       
-      BoutReal neval = sol_ne->generate(xnorm,TWOPI*ynorm,0.0, t);
-      BoutReal teval = sol_te->generate(xnorm,TWOPI*ynorm,0.0, t);
+      BoutReal neval = sol_ne->generate(xnorm,TWOPI*ynorm,0.0, time);
+      BoutReal teval = sol_te->generate(xnorm,TWOPI*ynorm,0.0, time);
       
       if((neval < 0.0) || (teval < 0.0))
         continue; // Skip, leave as previous boundary
@@ -1695,13 +1731,13 @@ int Hermes::rhs(BoutReal t) {
     ddt(Ne) -= Div_par_FV_FS(Ne, Ve, sqrt(mi_me)*sound_speed);
   }
   
-  if(j_diamag) {
+  if (j_diamag) {
     // Diamagnetic drift, formulated as a magnetic drift
     
     ddt(Ne) -= Div_f_v_XPPM(Ne, -Telim*Curlb_B, ne_bndry_flux); // Grad-B, curvature drift
   }
   
-  if(ramp_mesh && (t < ramp_timescale)) {
+  if (ramp_mesh && (time < ramp_timescale)) {
     ddt(Ne) += NeTarget / ramp_timescale;
   }
   
@@ -1710,9 +1746,6 @@ int Hermes::rhs(BoutReal t) {
     //Dn = (1. + 1.3*SQ(neoclassical_q)) * 2. / (tau_e0*Omega_ci * mi_me);
     
     Dn = (Telim + Ti) / ( tau_e * mi_me * SQ(mesh->Bxy) );
-//    output.write("\n Dn : %e -> %e\n", min(Dn), max(Dn));
-//    output.write("\n g11/dx^2 = %e -> %e\n",min(mesh->g11/SQ(mesh->dx)), max(mesh->g11/SQ(mesh->dx)));
-//    output.write("\n g33/dz^2 = %e -> %e\n",min(mesh->g33/SQ(mesh->dz)), max(mesh->g33/SQ(mesh->dz)));
     ddt(Ne) += Div_Perp_Lap_FV(Dn, Ne, ne_bndry_flux);
     ddt(Ne) -= Div_Perp_Lap_FV(0.5*Ne / ( tau_e * mi_me * SQ(mesh->Bxy) ), Te, ne_bndry_flux);
     //ddt(Ne) += Div_Perp_Lap_XYZ(Dn, Ne, ne_bndry_flux);
@@ -1723,41 +1756,76 @@ int Hermes::rhs(BoutReal t) {
   }
   
   // Source
-  Field3D NeSource;
-  if(adapt_source) {
-    // Add source. Ensure that sink will go to zero as Ne -> 0
+  if (adapt_source) {
     Field2D NeErr = averageY(Ne.DC() - NeTarget);
-    
-    if(core_sources) {
-      // Sources only in core (periodic Y) domain
-      // Try to keep NeTarget
-      
-      ddt(Sn) = 0.0;
-      for(int x=mesh->xstart;x<=mesh->xend;x++) {
-        if(!mesh->periodicY(x))
-          continue; // Not periodic, so skip
-        
-        for(int y=mesh->ystart;y<=mesh->yend;y++) {
-          Sn(x,y) -= source_p * NeErr(x,y);
-          ddt(Sn)(x,y) = -source_i * NeErr(x,y);
 
-          if(Sn(x,y) < 0.0) {
-            Sn(x,y) = 0.0;
-            if(ddt(Sn)(x,y) < 0.0)
-              ddt(Sn)(x,y) = 0.0;
-          }
+    if (adapt_fix_form) {
+      // Fix the form of the source function
+
+      // Average the error by integrating over the domain
+      // weighted by the source function
+      BoutReal error = 0.0;
+      for(int i=0;i<mesh->ngx;i++) {
+        for(int j=0;j<mesh->ngy;j++) {
+          error += NeErr(i,j) * Sn(i,j);
         }
       }
+      MPI_Allreduce(&error, &error, 1, MPI_DOUBLE, MPI_SUM, BoutComm::get());
+      error /= total_Sn;
+
+      // All processors now share the same error
+
+      // PI controller, using crude integral of the error
+      if (density_error_lasttime < 0.0) {
+        // First time
+        density_error_lasttime = time;
+        density_error_last = error;
+      }
+      // Integrate using Trapezium rule
+      if (time > density_error_lasttime) { // Since time can decrease
+        density_error_integral += (time - density_error_lasttime)*
+          0.5*(error + density_error_last);
+      }
+      if (density_error_integral < 0.0) {
+        density_error_integral = 0.0;
+      }
+
+      NeSource = Sn * (-source_p * error - source_i * density_error_integral);
       
-      NeSource = Sn;
-    }else {
-      // core_sources = false
-      NeSource = Sn*where(Sn, NeTarget, Ne);
-      NeSource -= source_p * NeErr/NeTarget;
-      
-      ddt(Sn) = -source_i * NeErr;
+    } else {
+      if (core_sources) {
+        // Sources only in core (periodic Y) domain
+        // Try to keep NeTarget
+        
+        ddt(Sn) = 0.0;
+        for (int x=mesh->xstart;x<=mesh->xend;x++) {
+          if (!mesh->periodicY(x))
+            continue; // Not periodic, so skip
+          
+          for (int y=mesh->ystart;y<=mesh->yend;y++) {
+            Sn(x,y) -= source_p * NeErr(x,y);
+            ddt(Sn)(x,y) = -source_i * NeErr(x,y);
+            
+            if (Sn(x,y) < 0.0) {
+              Sn(x,y) = 0.0;
+              if (ddt(Sn)(x,y) < 0.0)
+                ddt(Sn)(x,y) = 0.0;
+            }
+          }
+        }
+        
+        NeSource = Sn;
+      } else {
+        // core_sources = false
+        NeSource = Sn*where(Sn, NeTarget, Ne);
+        NeSource -= source_p * NeErr/NeTarget;
+        
+        ddt(Sn) = -source_i * NeErr;
+      }
     }
-  }else {
+  } else {
+    // Add source. Ensure that sink will go to zero as Ne -> 0
+    
     NeSource = Sn*where(Sn, 1.0, Ne);
   }
   ddt(Ne) += NeSource;
@@ -2049,12 +2117,12 @@ int Hermes::rhs(BoutReal t) {
   
   // Divergence of heat flux due to ExB advection
   ddt(Pe) -= Div_n_bxGrad_f_B_XPPM(Pe, phi, pe_bndry_flux, poloidal_flows, true);
-  if(parallel_flow) {
+  if (parallel_flow) {
     //ddt(Pe) -= Div_parP_LtoC(Pe,Ve);  // Parallel flow
     ddt(Pe) -= Div_par_FV_FS(Pe, Ve, sqrt(mi_me)*sound_speed);
   }
   
-  if(j_diamag) { // Diamagnetic flow
+  if (j_diamag) { // Diamagnetic flow
     // Magnetic drift (curvature) divergence.
     ddt(Pe) -= (5./3)*Div_f_v_XPPM(Pe, -Telim*Curlb_B, pe_bndry_flux);  
     
@@ -2152,19 +2220,19 @@ int Hermes::rhs(BoutReal t) {
     ddt(Pe) -= (2./3)*0.71*Jpar*Grad_parP(Te);
   }
   
-  if(pe_par) {
+  if (pe_par) {
     // This term balances energetically the pressure term
     // in Ohm's law
     ddt(Pe) -= (2./3) * Pelim * Div_par(Ve);
   }
-  if(ramp_mesh && (t < ramp_timescale)) {
+  if (ramp_mesh && (time < ramp_timescale)) {
     ddt(Pe) += PeTarget / ramp_timescale;
   }
 
   //////////////////////
   // Classical diffusion
   
-  if(classical_diffusion) {
+  if (classical_diffusion) {
     // nu_rho2 = nu_ei * rho_e^2 in normalised units
     Field3D nu_rho2 = Telim/( tau_e * mi_me * SQ(mesh->Bxy) );
     
@@ -2196,57 +2264,94 @@ int Hermes::rhs(BoutReal t) {
     // Add source. Ensure that sink will go to zero as Pe -> 0
     Field2D PeErr = averageY(Pe.DC() - PeTarget);
 
-    if(core_sources) {
-      // Sources only in core
+    if (adapt_fix_form) {
+      // Fix the form of the source function
 
-      ddt(Spe) = 0.0;
-      for(int x=mesh->xstart;x<=mesh->xend;x++) {
-        if(!mesh->periodicY(x))
-          continue; // Not periodic, so skip
-
-        for(int y=mesh->ystart;y<=mesh->yend;y++) {
-          Spe(x,y) -= source_p * PeErr(x,y);
-          ddt(Spe)(x,y) = -source_i * PeErr(x,y);
-
-          if(Spe(x,y) < 0.0) {
-            Spe(x,y) = 0.0;
-            if(ddt(Spe)(x,y) < 0.0)
-              ddt(Spe)(x,y) = 0.0;
-          }
+      // Average the error by integrating over the domain
+      // weighted by the source function
+      BoutReal error = 0.0;
+      for(int i=0;i<mesh->ngx;i++) {
+        for(int j=0;j<mesh->ngy;j++) {
+          error += PeErr(i,j) * Spe(i,j);
         }
       }
-
-      if(energy_source) {
-        // Add the same amount of energy to each particle
-        ddt(Pe) += Spe*Nelim / Nelim.DC();
-      }else {
-        ddt(Pe) += Spe;
-      }
-    }else {
+      MPI_Allreduce(&error, &error, 1, MPI_DOUBLE, MPI_SUM, BoutComm::get());
+      error /= total_Spe;
       
-      Spe -= source_p * PeErr/PeTarget;
-      ddt(Spe) = -source_i * PeErr;
+      // All processors now share the same error
 
-      if(energy_source) {
-        // Add the same amount of energy to each particle
-        ddt(Pe) += Spe*Nelim / Nelim.DC();
-      }else {
-        ddt(Pe) += Spe*where(Spe, PeTarget, Pe);
+      // PI controller, using crude integral of the error
+      if (pe_error_lasttime < 0.0) {
+        // First time
+        pe_error_lasttime = time;
+        pe_error_last = error;
+      }
+      // Integrate using Trapezium rule
+      if(time > pe_error_lasttime) { // Since time can decrease
+        pe_error_integral += (time - pe_error_lasttime)*
+          0.5*(error + pe_error_last);
+      }
+      if (pe_error_integral < 0.0) {
+        pe_error_integral = 0.0;
+      }
+      
+      PeSource = Spe * (-source_p * error - source_i * pe_error_integral);
+      
+    } else {
+      
+      if (core_sources) {
+        // Sources only in core
+        
+        ddt(Spe) = 0.0;
+        for (int x=mesh->xstart;x<=mesh->xend;x++) {
+          if (!mesh->periodicY(x))
+            continue; // Not periodic, so skip
+
+          for (int y=mesh->ystart;y<=mesh->yend;y++) {
+            Spe(x,y) -= source_p * PeErr(x,y);
+            ddt(Spe)(x,y) = -source_i * PeErr(x,y);
+            
+            if (Spe(x,y) < 0.0) {
+              Spe(x,y) = 0.0;
+              if (ddt(Spe)(x,y) < 0.0)
+                ddt(Spe)(x,y) = 0.0;
+            }
+          }
+        }
+        
+        if (energy_source) {
+          // Add the same amount of energy to each particle
+          PeSource = Spe*Nelim / Nelim.DC();
+        } else {
+          PeSource = Spe;
+        }
+      } else {
+        
+        Spe -= source_p * PeErr/PeTarget;
+        ddt(Spe) = -source_i * PeErr;
+      
+        if(energy_source) {
+          // Add the same amount of energy to each particle
+          PeSource = Spe*Nelim / Nelim.DC();
+        }else {
+          PeSource = Spe*where(Spe, PeTarget, Pe);
+        }
       }
     }
   }else {
     // Not adapting sources
-
+    
     if(energy_source) {
       // Add the same amount of energy to each particle
-      ddt(Pe) += Spe*Nelim / Nelim.DC();
+      PeSource = Spe*Nelim / Nelim.DC();
     }else {
       // Add the same amount of energy per volume
       // If no particle source added, then this can lead to 
       // a small number of particles with a lot of energy!
-      ddt(Pe) += Spe*where(Spe, 1.0, Pe);
+      PeSource = Spe*where(Spe, 1.0, Pe);
     }
   }
+  ddt(Pe) += PeSource;
   
   //////////////////////
   // Numerical dissipation
@@ -2466,7 +2571,7 @@ int Hermes::rhs(BoutReal t) {
       lambda = 0.0;
       Nn0 = 0.0;
       // Approximate neutral density at t=0 to be exponential away from plate with max density equal to ion max density
-      if(t==0) {
+      if (time < 1e-10) {
          Field2D ll;
          ll = CumSumY2D(hthe*mesh->dy/Lmax, true);
 	 Nn = max(Nelim) * exp(-ll);
@@ -2632,7 +2737,7 @@ int Hermes::rhs(BoutReal t) {
       ddt(Vn2D).y += Ury * ddt(vr) + Uzy * ddt(vz);
       
       DivV2D = Div(Vn2D);
-      DivV2D.applyBoundary(t);
+      DivV2D.applyBoundary(time);
       mesh->communicate(DivV2D);
       
       //ddt(Vn2D) += Grad( (neutral_viscosity/3. + neutral_bulk) * DivV2D ) / Nn2D_floor;
