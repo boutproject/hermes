@@ -53,9 +53,9 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
   Rrc = 0.0;
   Rcx = 0.0;
   
-  for(int i=mesh->xstart;i<=mesh->xend;i++)
-    for(int j=mesh->ystart;j<=mesh->yend;j++)
-      for(int k=0;k<mesh->ngz-1;k++) {
+  for (int i=mesh->xstart;i<=mesh->xend;i++)
+    for (int j=mesh->ystart;j<=mesh->yend;j++)
+      for (int k=0;k<mesh->ngz-1;k++) {
         // Integrate rates over each cell in Y
         // NOTE: This should integrate over (x,y,z)
         
@@ -67,12 +67,12 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
         BoutReal Nn_C = Nn(i,j,k), Nn_L = 0.5*(Nn(i,j-1,k) + Nn(i,j,k)), Nn_R = 0.5*(Nn(i,j,k) + Nn(i,j+1,k));
         BoutReal Vn_C = Vnpar(i,j,k), Vn_L = 0.5*(Vnpar(i,j-1,k) + Vnpar(i,j,k)), Vn_R = 0.5*(Vnpar(i,j,k) + Vnpar(i,j+1,k));
         
-        if(Ne_C < 0.) Ne_C = 0.0;
-        if(Ne_L < 0.) Ne_L = 0.0;
-        if(Ne_R < 0.) Ne_R = 0.0;
-        if(Nn_C < 0.) Nn_C = 0.0;
-        if(Nn_L < 0.) Nn_L = 0.0;
-        if(Nn_R < 0.) Nn_R = 0.0;
+        if (Ne_C < 0.) Ne_C = 0.0;
+        if (Ne_L < 0.) Ne_L = 0.0;
+        if (Ne_R < 0.) Ne_R = 0.0;
+        if (Nn_C < 0.) Nn_C = 0.0;
+        if (Nn_L < 0.) Nn_L = 0.0;
+        if (Nn_R < 0.) Nn_R = 0.0;
 
         // Jacobian (Cross-sectional area)
         BoutReal J_C = mesh->J(i,j), J_L = 0.5*(mesh->J(i,j-1) + mesh->J(i,j)), J_R = 0.5*(mesh->J(i,j) + mesh->J(i,j+1));
@@ -209,6 +209,26 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
                       +      J_R * R_iz_R
                       ) / (6. * J_C);
         
-        ASSERT1(finite(Riz(i,j,k)));    
+        ASSERT1(finite(Riz(i,j,k)));
+
+        ///////////////////////////////////////      
+        // Electron-neutral excitation
+
+        if (excitation) {
+          BoutReal R_ex_L  = Ne_L*Nn_L*hydrogen.excitation(Te_L*Tnorm) * Nnorm / Omega_ci / Tnorm;
+          BoutReal R_ex_C  = Ne_C*Nn_C*hydrogen.excitation(Te_C*Tnorm) * Nnorm / Omega_ci / Tnorm;
+          BoutReal R_ex_R  = Ne_R*Nn_R*hydrogen.excitation(Te_R*Tnorm) * Nnorm / Omega_ci / Tnorm;
+
+          ASSERT2(finite(R_ex_L) && (R_ex_L >= 0.0));
+          ASSERT2(finite(R_ex_C) && (R_ex_C >= 0.0));
+          ASSERT2(finite(R_ex_R) && (R_ex_R >= 0.0));
+          
+          R(i,j,k) += (
+                       J_L * R_ex_L
+                       + 4.*J_C * R_ex_C
+                       +    J_R * R_ex_R
+                       ) / (6. * J_C); 
+        }
+        
       }
 }
