@@ -364,9 +364,9 @@ int Hermes::init(bool restarting) {
           total_Spe += Spe(i,j);
         }
       }
-      BoutReal values[2];
-      values[0] = total_Sn; values[1] = total_Spe;
-      MPI_Allreduce(values, values, 2, MPI_DOUBLE, MPI_SUM, BoutComm::get());
+      BoutReal local_values[2], values[2];
+      local_values[0] = total_Sn; local_values[1] = total_Spe;
+      MPI_Allreduce(local_values, values, 2, MPI_DOUBLE, MPI_SUM, BoutComm::get());
       total_Sn = values[0]; total_Spe = values[1];
 
       
@@ -377,8 +377,8 @@ int Hermes::init(bool restarting) {
       solver->addToRestart(pe_error_integral, "pe_error_integral");
       
       if (!restarting) {
-        density_error_integral = 1./source_i;
-        pe_error_integral = 1./source_i;
+        density_error_integral = -1./source_i;
+        pe_error_integral = -1./source_i;
       }
       
     } else {
@@ -1769,13 +1769,14 @@ int Hermes::rhs(BoutReal time) {
 
       // Average the error by integrating over the domain
       // weighted by the source function
-      BoutReal error = 0.0;
+      BoutReal local_error = 0.0;
       for(int i=0;i<mesh->ngx;i++) {
         for(int j=0;j<mesh->ngy;j++) {
-          error += NeErr(i,j) * Sn(i,j);
+          local_error += NeErr(i,j) * Sn(i,j);
         }
       }
-      MPI_Allreduce(&error, &error, 1, MPI_DOUBLE, MPI_SUM, BoutComm::get());
+      BoutReal error;
+      MPI_Allreduce(&local_error, &error, 1, MPI_DOUBLE, MPI_SUM, BoutComm::get());
       error /= total_Sn;
 
       // All processors now share the same error
@@ -2274,13 +2275,14 @@ int Hermes::rhs(BoutReal time) {
 
       // Average the error by integrating over the domain
       // weighted by the source function
-      BoutReal error = 0.0;
+      BoutReal local_error = 0.0;
       for(int i=0;i<mesh->ngx;i++) {
         for(int j=0;j<mesh->ngy;j++) {
-          error += PeErr(i,j) * Spe(i,j);
+          local_error += PeErr(i,j) * Spe(i,j);
         }
       }
-      MPI_Allreduce(&error, &error, 1, MPI_DOUBLE, MPI_SUM, BoutComm::get());
+      BoutReal error;
+      MPI_Allreduce(&local_error, &error, 1, MPI_DOUBLE, MPI_SUM, BoutComm::get());
       error /= total_Spe;
       
       // All processors now share the same error

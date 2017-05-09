@@ -8,7 +8,7 @@ TwistShift = true  # use twist-shift condition?
 
 ZPERIOD=1
 
-grid = "isttok-jan17-68x8x256-q8.nc"
+grid = "isttok-may17-68x8x256-q8.nc"
 
 [mesh]
 symmetricGlobalX = true
@@ -44,7 +44,7 @@ mxstep = 1000000
 type = cvode
 use_precon = true
 
-maxl = 10
+maxl = 25
 
 ATOL = 1.0e-10  # absolute tolerance
 RTOL = 1.0e-5   # relative tolerance
@@ -154,8 +154,9 @@ neutral_gamma = 1.2
 
 startprofiles = false # Start with mesh profiles
 
-core_sources = true # Only sources in the core
-adapt_source = true   # Feedback on profiles (PI controller)
+core_sources = true    # Only sources in the core
+adapt_source = true    # Feedback on profiles (PI controller)
+adapt_fix_form = true  # Scale input sources by constant factor
 energy_source = true   # Constant power per particle (at fixed x). False -> Constant power per volume
 source_p = 1e-4       # Rate based on current error (1/timescale)
 source_i = 1e-10       # Integral of error (1/timescale^2)
