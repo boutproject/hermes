@@ -1,7 +1,7 @@
 # ISTTOK test case
 
 NOUT = 2000    # number of output time-steps
-TIMESTEP = 10 # time between outputs
+TIMESTEP = 50 # time between outputs
 
 ShiftXderivs = false # use shifted radial derivatives?
 TwistShift = true  # use twist-shift condition?
@@ -81,14 +81,14 @@ outer_boundary_flags = 0
 
 [Hermes]
 
-numdiff = 0.01    # Numerical diffusion
+numdiff = -1    # Numerical diffusion
 hyper = -1      # Hyper-diffusion
-ExBdiff = 1e-3  # Dissipation in ExB advection terms
+ExBdiff = -1e-3  # Dissipation in ExB advection terms
 ADpar = -1
-y_hyper_viscos = 1
-z_hyper_viscos = 0.01
-ne_hyper_z = 0.01
-pe_hyper_z = 0.01
+y_hyper_viscos = -1
+z_hyper_viscos = -0.01
+ne_hyper_z = -0.01
+pe_hyper_z = -0.01
 
 electromagnetic = true  # Electromagnetic? Otherwise electrostatic
 FiniteElMass    = true  # Finite electron mass?
@@ -158,8 +158,8 @@ core_sources = true    # Only sources in the core
 adapt_source = true    # Feedback on profiles (PI controller)
 adapt_fix_form = true  # Scale input sources by constant factor
 energy_source = true   # Constant power per particle (at fixed x). False -> Constant power per volume
-source_p = 1e-4       # Rate based on current error (1/timescale)
-source_i = 1e-10       # Integral of error (1/timescale^2)
+source_p = 1e-1       # Rate based on current error (1/timescale)
+source_i = 1e-4       # Integral of error (1/timescale^2)
 
 staggered = false
 
@@ -192,7 +192,7 @@ scale = 1
 
 function = 0.5
 
-source = 1e2 * exp(-(4*x^2))
+source = 1e2 * exp(-(64*x^2))
 
 [NVi]
 bndry_ydown = dirichlet_o2

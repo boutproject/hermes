@@ -351,15 +351,15 @@ int Hermes::init(bool restarting) {
     OPTION(optsc, source_i, 1e-6);
 
     // Save the actual source added
-    SAVE_REPEAT(NeSource);
+    SAVE_REPEAT2(NeSource, PeSource);
     
     OPTION(optsc, adapt_fix_form, false);
     if (adapt_fix_form) {
       // Fix the form of the source, changing amplitude
       // Sum over the grid, for later normalisation
       total_Sn = total_Spe = 0.0;
-      for(int i=0;i<mesh->ngx;i++) {
-        for(int j=0;j<mesh->ngy;j++) {
+      for (int i=0;i<mesh->ngx;i++) {
+        for (int j=0;j<mesh->ngy;j++) {
           total_Sn += Sn(i,j);
           total_Spe += Spe(i,j);
         }
@@ -1770,8 +1770,8 @@ int Hermes::rhs(BoutReal time) {
       // Average the error by integrating over the domain
       // weighted by the source function
       BoutReal local_error = 0.0;
-      for(int i=0;i<mesh->ngx;i++) {
-        for(int j=0;j<mesh->ngy;j++) {
+      for (int i=0;i<mesh->ngx;i++) {
+        for (int j=0;j<mesh->ngy;j++) {
           local_error += NeErr(i,j) * Sn(i,j);
         }
       }
@@ -1791,8 +1791,11 @@ int Hermes::rhs(BoutReal time) {
       if (time > density_error_lasttime) { // Since time can decrease
         density_error_integral += (time - density_error_lasttime)*
           0.5*(error + density_error_last);
+
+        density_error_last = error;
+        density_error_lasttime = time;
       }
-      if (density_error_integral < 0.0) {
+      if (density_error_integral > 0.0) {
         density_error_integral = 0.0;
       }
 
@@ -2297,8 +2300,11 @@ int Hermes::rhs(BoutReal time) {
       if(time > pe_error_lasttime) { // Since time can decrease
         pe_error_integral += (time - pe_error_lasttime)*
           0.5*(error + pe_error_last);
+
+        pe_error_lasttime = time;
+        pe_error_last = error;
       }
-      if (pe_error_integral < 0.0) {
+      if (pe_error_integral > 0.0) {
         pe_error_integral = 0.0;
       }
       
