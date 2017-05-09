@@ -629,6 +629,11 @@ int Hermes::init(bool restarting) {
   
   // Load hthe - only needed for neutral_model=2
   GRID_LOAD(hthe);
+
+  /////////////////////////////////////////////////////////
+  // Radiation due to hydrogen excitation
+  
+  OPTION(opt, excitation, false);    // Include electron impact excitation?
   
   /////////////////////////////////////////////////////////
   // Impurities
