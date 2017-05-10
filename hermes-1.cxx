@@ -633,7 +633,7 @@ int Hermes::init(bool restarting) {
   /////////////////////////////////////////////////////////
   // Radiation due to hydrogen excitation
   
-  OPTION(opt, excitation, false);    // Include electron impact excitation?
+  OPTION(optsc, excitation, false);    // Include electron impact excitation?
   
   /////////////////////////////////////////////////////////
   // Impurities

@@ -80,7 +80,7 @@ private:
   BoutReal neutral_conduction; // Neutral gas thermal conduction
   BoutReal frecycle;       // Recycling fraction
   BoutReal Eionize;   // Ionisation energy loss
-  BoutReal excitation; // Include electron impact excitation?
+  bool excitation; // Include electron impact excitation?
   
   Field3D Nn;         // Neutral gas density (evolving)
   Field3D Pn;         // Neutral gas pressure (evolving)
