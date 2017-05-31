@@ -1146,10 +1146,14 @@ const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n_in, const Field3D &f_in, bo
  *
  * Inputs are in field-aligned coordinates, so need
  * to be shifted for the X derivative terms
+ *
+ * @param[in] n_in      The quantity being advected
+ * @param[in] v         Advection velocity
+ * @param[in] bndry_flux  Allow boundary fluxes?
+ * @param[in] positive  Limit n values to be positive
  */
-const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v, bool bndry_flux) {
-  
-  if(v.covariant) {
+const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v, bool bndry_flux, bool positive) {
+  if (v.covariant) {
     // Got a covariant vector instead
     throw BoutException("Div_f_v_XPPM passed a covariant v");
   }
@@ -1160,7 +1164,7 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v, bool bndry_fl
   Field3D vz = v.z;
   Field3D n  = n_in;
   
-  if(mesh->ShiftXderivs) {
+  if (mesh->ShiftXderivs) {
     vx = v.x.shiftZ(true);
     vz = v.z.shiftZ(true);
     n = n_in.shiftZ(true);
@@ -1176,11 +1180,15 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v, bool bndry_fl
 	int kmm = (km-1+mesh->ngz-1) % (mesh->ngz-1);
         
         // Calculate velocities
-        BoutReal vU = 0.5*(vz(i,j,kp) + vz(i,j,k))*mesh->J(i,j);
-        BoutReal vD = 0.5*(vz(i,j,km) + vz(i,j,k))*mesh->J(i,j);
-        BoutReal vL = 0.25*(vx(i-1,j,k) + vx(i,j,k))*(mesh->J(i-1,j) + mesh->J(i,j));
-        BoutReal vR = 0.25*(vx(i+1,j,k) + vx(i,j,k))*(mesh->J(i+1,j) + mesh->J(i,j));
-
+        BoutReal vU = 0.5*(vz(i,j,kp) + vz(i,j,k));
+        BoutReal vD = 0.5*(vz(i,j,km) + vz(i,j,k));
+        BoutReal vL = 0.5*(vx(i-1,j,k) + vx(i,j,k));
+        BoutReal vR = 0.5*(vx(i+1,j,k) + vx(i,j,k));
+        
+        // Jacobian. NOTE: Can be negative
+        BoutReal JL = 0.5*(mesh->J(i-1,j) + mesh->J(i,j));
+        BoutReal JR = 0.5*(mesh->J(i+1,j) + mesh->J(i,j));
+        
         // X direction
 	Stencil1D s;
 	s.c  = n(i,  j,k);
@@ -1189,61 +1197,72 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v, bool bndry_fl
 	s.p  = n(i+1,j,k);
 	s.pp = n(i+2,j,k);
         
-        //Upwind(s, mesh->dx(i,j));
+        //Upwind(s, mesh->dx(i,j)); // 1st order accurate
 	//XPPM(s, mesh->dx(i,j)); 
-	Fromm(s, mesh->dx(i,j));
+	//Fromm(s, mesh->dx(i,j)); // 2nd order, some upwinding
+        MinMod(s, mesh->dx(i,j));  // Slope limiter
+
+        if (positive) {
+          if (s.R < 0.0) {
+            s.R = 0.0;
+          }
+          if (s.R < 0.0) {
+            s.R = 0.0;
+          }
+          if (n(i,j,k) < 0.0) {
+            s.R = s.L = 0.0;
+          }
+        }
         
-        if((i==mesh->xend) && (mesh->lastX())) {
+        if ((i==mesh->xend) && (mesh->lastX())) {
           // At right boundary in X
           
-          if(bndry_flux) {
+          if (bndry_flux) {
             BoutReal flux;
-            if(vR > 0.0) {
+            if (vR > 0.0) {
               // Flux to boundary
-              flux = vR * s.R;
-            }else {
+              flux = JR * vR * s.R;
+            } else {
               // Flux in from boundary
-              flux = vR * 0.5*(n(i+1,j,k) + n(i,j,k));
+              flux = JR * vR * 0.5*(n(i+1,j,k) + n(i,j,k));
             }
             result(i,j,k)   += flux / (mesh->dx(i,j) * mesh->J(i,j));
             result(i+1,j,k) -= flux / (mesh->dx(i+1,j) * mesh->J(i+1,j));
           }
-        }else {
+        } else {
           // Not at a boundary
-          if(vR > 0.0) {
+          if (vR > 0.0) {
             // Flux out into next cell
-            BoutReal flux = vR * s.R;
+            BoutReal flux = JR * vR * s.R;
             result(i,j,k)   += flux / (mesh->dx(i,j) * mesh->J(i,j));
             result(i+1,j,k) -= flux / (mesh->dx(i+1,j) * mesh->J(i+1,j));
-            //if(i==mesh->xend)
-            //  output.write("Setting flux (%d,%d) : %e\n", j,k,result(i+1,j,k));
           }
 	}
         
         // Left side
           
-	if((i==mesh->xstart) && (mesh->firstX())) {
+	if ((i==mesh->xstart) && (mesh->firstX())) {
           // At left boundary in X
           
-          if(bndry_flux) {
+          if (bndry_flux) {
             BoutReal flux;
             
-            if(vL < 0.0) {
+            if (vL < 0.0) {
               // Flux to boundary
-              flux = vL * s.L;
+              flux = JL * vL * s.L;
               
-            }else {
+            } else {
               // Flux in from boundary
-              flux = vL * 0.5*(n(i-1,j,k) + n(i,j,k));
+              flux = JL * vL * 0.5*(n(i-1,j,k) + n(i,j,k));
             }
             result(i,j,k)   -= flux / (mesh->dx(i,j) * mesh->J(i,j));
             result(i-1,j,k) += flux / (mesh->dx(i-1,j) * mesh->J(i-1,j));
           }
-        }else {
+        } else {
           // Not at a boundary
           
-          if(vL < 0.0) {
-            BoutReal flux = vL * s.L;
+          if (vL < 0.0) {
+            BoutReal flux = JL * vL * s.L;
             result(i,j,k)   -= flux / (mesh->dx(i,j) * mesh->J(i,j));
             result(i-1,j,k) += flux / (mesh->dx(i-1,j) * mesh->J(i-1,j));
           }
@@ -1261,20 +1280,20 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v, bool bndry_fl
 	//XPPM(s, mesh->dz);
 	Fromm(s, mesh->dz);
 
-	if(vU > 0.0) {
-	  BoutReal flux = vU * s.R / (mesh->J(i,j)*mesh->dz);
+	if (vU > 0.0) {
+	  BoutReal flux = vU * s.R / mesh->dz;
 	  result(i,j,k)   += flux;
 	  result(i,j,kp)  -= flux;
 	}
-	if(vD < 0.0) {
-	  BoutReal flux = vD * s.L / (mesh->J(i,j)*mesh->dz);
+	if (vD < 0.0) {
+	  BoutReal flux = vD * s.L / mesh->dz;
 	  result(i,j,k)   -= flux;
 	  result(i,j,km)  += flux;
 	}
         
       }
   communicateFluxes(result);
-  if(mesh->ShiftXderivs) {
+  if (mesh->ShiftXderivs) {
     result = result.shiftZ(false);  // Shift to field-aligned
   }
   

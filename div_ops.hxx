@@ -114,7 +114,7 @@ const Field3D AddedDissipation(const Field3D &N, const Field3D &P, const Field3D
 
 const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n, const Field3D &f, bool bndry_flux=true, bool poloidal=false, bool positive=false);
 
-const Field3D Div_f_v_XPPM(const Field3D &n, const Vector3D &v, bool bndry_flux=true);
+const Field3D Div_f_v_XPPM(const Field3D &n, const Vector3D &v, bool bndry_flux=true, bool positive=false);
 
 void communicateFluxes(Field3D &f);
 
