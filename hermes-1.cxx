@@ -1852,34 +1852,34 @@ int Hermes::rhs(BoutReal time) {
 
   ddt(Ne) += NeSource;
 
-  if(ExBdiff > 0.0) {
+  if (ExBdiff > 0.0) {
     
-    if(ExBpar) {
+    if (ExBpar) {
       ddt(Ne) += ExBdiff * Div_Perp_Lap_XYZ(SQ(mesh->dx)*mesh->g_11, Ne, ne_bndry_flux);
-    }else {
+    } else {
       ddt(Ne) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, Ne, ne_bndry_flux);
     }
   }
 
-  if(ADpar > 0.0) {
+  if (ADpar > 0.0) {
     //ddt(Ne) += ADpar * AddedDissipation(1.0, Pe, Ne, false);
     
     ddt(Ne) += ADpar * AddedDissipation(Ne, Pe, Nelim, ADpar_bndry);
 
-    if(ADpar_phine) {
+    if (ADpar_phine) {
       ddt(Ne) -= ADpar * AddedDissipation(Ne, phi, Nelim, ADpar_bndry);
-    }else {
+    } else {
       ddt(Ne) -= ADpar * AddedDissipation(1.0, phi, Ne, ADpar_bndry);
     }
   }
 
-  if(low_n_diffuse) {
+  if (low_n_diffuse) {
     // Diffusion which kicks in at very low density, in order to 
     // help prevent negative density regions
     ddt(Ne) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*1e-4/Nelim, Ne, false);
   }
 
-  if(ne_hyper_z > 0.) {
+  if (ne_hyper_z > 0.) {
     ddt(Ne) -= ne_hyper_z*SQ(SQ(mesh->dz))*D4DZ4(Ne);
   }
 
@@ -2123,11 +2123,11 @@ int Hermes::rhs(BoutReal time) {
       }
     }
 
-    if(ADpar > 0.0) {
+    if (ADpar > 0.0) {
       ddt(NVi) += ADpar * AddedDissipation(Ne, Pe, NVi, ADpar_bndry);
     }
 
-    if(hyperpar > 0.0) {
+    if (hyperpar > 0.0) {
       ddt(NVi) -= D4DY4_FV(SQ(SQ(mesh->dy)), Vi) / mi_me;
     }
   }
@@ -2139,6 +2139,7 @@ int Hermes::rhs(BoutReal time) {
   
   // Divergence of heat flux due to ExB advection
   ddt(Pe) -= Div_n_bxGrad_f_B_XPPM(Pe, phi, pe_bndry_flux, poloidal_flows, true);
+
   if (parallel_flow) {
     //ddt(Pe) -= Div_parP_LtoC(Pe,Ve);  // Parallel flow
     ddt(Pe) -= Div_par_FV_FS(Pe, Ve, sqrt(mi_me)*sound_speed);
