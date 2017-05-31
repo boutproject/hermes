@@ -2261,7 +2261,7 @@ int Hermes::rhs(BoutReal time) {
     
     ddt(Pe) += (2./3) * (
                          Div_Perp_Lap_FV(nu_rho2, Pe, pe_bndry_flux)
-                         + (11./12)*Div_Perp_Lap_FV(nu_rho2*Ne, Te, pe_bndry_flux)
+                         + (11./12)*Div_Perp_Lap_FV(nu_rho2*Nelim, Te, pe_bndry_flux)
                           );
   }
 
@@ -2407,6 +2407,12 @@ int Hermes::rhs(BoutReal time) {
     }
 
     ddt(Pe) += ADpar * AddedDissipation(1.0, Te, 1.0, ADpar_bndry);
+  }
+
+  if(low_n_diffuse) {
+    // Diffusion which kicks in at very low density, in order to 
+    // help prevent negative density regions
+    ddt(Pe) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*1e-4/Pelim, Pe, false);
   }
   
   ///////////////////////////////////////////////////////////
