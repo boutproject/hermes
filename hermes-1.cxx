@@ -275,7 +275,15 @@ int Hermes::init(bool restarting) {
       }
     }
   }
-  
+
+  // Multiply sources by g11 
+  OPTION(optsc, source_vary_g11, false);
+  if (source_vary_g11) {
+    // Average metric tensor component
+    g11norm = mesh->g11 / averageY(mesh->g11);
+  }
+
+ 
   // Mid-plane power flux q_||
   string midplane_power;
   OPTION(optpe, midplane_power, "0.0");
@@ -1589,9 +1597,9 @@ int Hermes::rhs(BoutReal time) {
 	  
 	  // Sheath current
 	  BoutReal phi_te = floor(phisheath / Telim(r.ind, mesh->yend, jz), 0.0);
-      BoutReal vesheath = sqrt(tesheath) * (sqrt(mi_me)/(2.*sqrt(PI))) * exp(-phi_te);
+          BoutReal vesheath = sqrt(tesheath) * (sqrt(mi_me)/(2.*sqrt(PI))) * exp(-phi_te);
 	  // J = n*(Vi - Ve)
-      BoutReal jsheath = nesheath * (visheath - vesheath);
+          BoutReal jsheath = nesheath * (visheath - vesheath);
 	  if(nesheath < 1e-10) {
 	    vesheath = visheath;
 	    jsheath = 0.0;
@@ -1837,6 +1845,11 @@ int Hermes::rhs(BoutReal time) {
     
     NeSource = Sn*where(Sn, 1.0, Ne);
   }
+
+  if (source_vary_g11) {
+    NeSource *= g11norm;
+  }
+
   ddt(Ne) += NeSource;
 
   if(ExBdiff > 0.0) {
@@ -2100,7 +2113,7 @@ int Hermes::rhs(BoutReal time) {
       ddt(NVi) += Div_Perp_Lap_FV(Vi.DC()*anomalous_D, Ne.DC(), ne_bndry_flux);
       //ddt(NVi) += Div_Perp_Lap_XYZ(Vi*anomalous_D, Ne, ne_bndry_flux);
     }
-    if(ExBdiff > 0.0) {
+    if (ExBdiff > 0.0) {
       
       if(ExBpar) {
         ddt(NVi) += ExBdiff * Div_Perp_Lap_XYZ(SQ(mesh->dx)*mesh->g_11, NVi, ne_bndry_flux);
@@ -2141,28 +2154,28 @@ int Hermes::rhs(BoutReal time) {
   }
   
   // Parallel heat conduction
-  if(thermal_conduction) {
+  if (thermal_conduction) {
     ddt(Pe) += (2./3)*Div_par_diffusion(kappa_epar, Te);
   }
   
-  if(thermal_flux) {
+  if (thermal_flux) {
     // Parallel heat convection 
     ddt(Pe) += (2./3)*0.71*Div_parP_LtoC(Te,Jpar);
   }
   
-  if(currents && resistivity) {
+  if (currents && resistivity) {
     // Ohmic heating
     ddt(Pe) += nu*Jpar*(Jpar - Jpar0)/Nelim;
   }
 
-  if(pe_hyper_z > 0.0) {
+  if (pe_hyper_z > 0.0) {
     ddt(Pe) -= pe_hyper_z*SQ(SQ(mesh->dz))*D4DZ4(Pe);
   }
 
   ///////////////////////////////////
   // Heat transmission through sheath
   wall_power = 0.0; // Diagnostic output
-  if(sheath_yup) {
+  if (sheath_yup) {
     TRACE("sheath yup heat transmission");
     switch(sheath_model) {
     case 0:
@@ -2364,6 +2377,11 @@ int Hermes::rhs(BoutReal time) {
       PeSource = Spe*where(Spe, 1.0, Pe);
     }
   }
+
+  if (source_vary_g11) {
+    PeSource *= g11norm;
+  }
+
   ddt(Pe) += PeSource;
   
   //////////////////////

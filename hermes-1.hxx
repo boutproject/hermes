@@ -237,7 +237,10 @@ private:
   Field2D Sn, Spe; // Sources in density and Pe
   BoutReal total_Sn, total_Spe; // Sum over all cells
   Field3D NeSource, PeSource; // These are the actual source added
-  
+ 
+  bool source_vary_g11; // Multiply source by g11
+  Field2D g11norm;
+ 
   BoutReal density_error_lasttime, density_error_last, density_error_integral;
   BoutReal pe_error_lasttime, pe_error_last, pe_error_integral;
   
