@@ -76,6 +76,9 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, poloidal_flows, false);
   OPTION(optsc, ion_velocity, true);
 
+  OPTION(optsc, rotation, false);
+  OPTION(optsc, rotation_rate, 0.0);  // Input in Hz
+
   OPTION(optsc, thermal_conduction, true);
   
   OPTION(optsc, neutral_friction, false);
@@ -224,7 +227,7 @@ int Hermes::init(bool restarting) {
     //Jpar0 /= qe*Nnorm*Cs0;
     Jpar0 = 0.0;
   }
-
+  
   string source;
   FieldFactory fact(mesh);
   
@@ -437,7 +440,56 @@ int Hermes::init(bool restarting) {
     
     mesh->geometry(); // Calculate other metrics
   }
+  
+  /////////////////////////////////////////////////////////
+  // Toroidal rotation
+  // Note that this must be done after coordinates are a
+  
+  if (rotation) {
+    // Normalise rotation rate from Hz to radians per cyclotron time
+    
+    rotation_rate *= TWOPI / Omega_ci;
+    output.write("Normalised rotation rate = %e\n", rotation_rate);
 
+    // Calculate vectors needed, mainly Grad(Z) and Grad(R)
+    Field2D Rxy;
+    if (mesh->get(Rxy, "Rxy")) {
+      throw BoutException("Rotation requires an Rxy variable");
+    }
+    Field2D Zxy;
+    if (mesh->get(Zxy, "Zxy")) {
+      throw BoutException("Rotation requires an Rxy variable");
+    }
+    
+    // Normalise Rxy and Zxy
+    Rxy /= rho_s0;
+    Zxy /= rho_s0;
+    
+    // Rotation rate vector for Coriolis force
+    Omega_vec = rotation_rate * Grad(Zxy);
+    
+    // Magnetic field unit vector
+    Vector2D b0vec;
+    b0vec.covariant = false;
+    b0vec.x = b0vec.z = 0;
+    b0vec.y = 1./mesh->g_22;
+
+    // b cross Grad(R) for centrifugal force
+    bxGradR = b0vec ^ Grad(Rxy);
+
+    // Fill guard cells by communicating and applying boundary condition
+    mesh->communicate(Omega_vec, bxGradR);
+    Omega_vec.x.applyBoundary("neumann");
+    Omega_vec.y.applyBoundary("neumann");
+    Omega_vec.z.applyBoundary("neumann");
+    
+    bxGradR.x.applyBoundary("neumann");
+    bxGradR.y.applyBoundary("neumann");
+    bxGradR.z.applyBoundary("neumann");
+    
+    SAVE_ONCE2(Omega_vec, bxGradR);
+  }
+  
   /////////////////////////////////////////////////////////
   // Neutral models
   
@@ -1749,7 +1801,7 @@ int Hermes::rhs(BoutReal time) {
     
     ddt(Ne) -= Div_f_v_XPPM(Ne, -Telim*Curlb_B, ne_bndry_flux); // Grad-B, curvature drift
   }
-  
+
   if (ramp_mesh && (time < ramp_timescale)) {
     ddt(Ne) += NeTarget / ramp_timescale;
   }
@@ -1908,7 +1960,18 @@ int Hermes::rhs(BoutReal time) {
       
       ddt(Vort) += Div(Pe * Curlb_B);
     }
-
+    
+    if (rotation) {
+      // Including solid-body rotation in toroidal direction
+      // Adds a current because Coriolis and centrifugal drifts
+      // depend on charge and mass
+      
+      ddt(Vort) += Div_f_v_XPPM(Ne, 
+                               -SQ(rotation_rate)*bxGradR / mesh->Bxy // centrifugal force
+                               + 2.*Vi*Omega_vec/mesh->Bxy // Coriolis force
+                               , vort_bndry_flux);
+    }
+    
     // Advection of vorticity by ExB
     if(boussinesq) {
       // If the Boussinesq approximation is made then the
@@ -2085,6 +2148,16 @@ int Hermes::rhs(BoutReal time) {
       ddt(NVi) -= Grad_parP_CtoL(Pe);
     }
     
+    if ( rotation ) {
+      // Including solid-body rotation in toroidal direction
+      // Adds Coriolis and centrifugal drifts
+      
+      ddt(NVi) -= Div_f_v_XPPM(NVi, 
+                               -SQ(rotation_rate)*bxGradR / mesh->Bxy // centrifugal force
+                               + 2.*Vi*Omega_vec/mesh->Bxy // Coriolis force
+                               , ne_bndry_flux);
+    }
+
     // Ion-neutral friction
     if(ion_neutral > 0.0)
       ddt(NVi) -= ion_neutral * NVi;
@@ -2129,6 +2202,12 @@ int Hermes::rhs(BoutReal time) {
 
     if (hyperpar > 0.0) {
       ddt(NVi) -= D4DY4_FV(SQ(SQ(mesh->dy)), Vi) / mi_me;
+    }
+    
+    if(low_n_diffuse) {
+      // Diffusion which kicks in at very low density, in order to 
+      // help prevent negative density regions
+      ddt(NVi) += Div_par_diffusion(Vi*SQ(mesh->dy)*mesh->g_22*1e-4/Nelim, Ne, true);
     }
   }
   
@@ -2409,10 +2488,10 @@ int Hermes::rhs(BoutReal time) {
     ddt(Pe) += ADpar * AddedDissipation(1.0, Te, 1.0, ADpar_bndry);
   }
 
-  if(low_n_diffuse) {
+  if (low_n_diffuse) {
     // Diffusion which kicks in at very low density, in order to 
     // help prevent negative density regions
-    ddt(Pe) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*1e-4/Pelim, Pe, false);
+    ddt(Pe) += Div_par_diffusion(Te*SQ(mesh->dy)*mesh->g_22*1e-4/Nelim, Ne, false);
   }
   
   ///////////////////////////////////////////////////////////

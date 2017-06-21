@@ -159,6 +159,11 @@ private:
 
   bool ion_velocity;  // Include Vi terms
 
+  bool rotation;          ///< Include toroidal rotation?
+  BoutReal rotation_rate; ///< Rotation rate (if rotation=true). Input in Hz
+  Vector2D Omega_vec;     ///< Rotation vector (in vertical direction)
+  Vector2D bxGradR;       ///< b cross Grad(R) for centrifugal drift
+
   bool phi3d;         // Use a 3D solver for phi
   
   bool staggered;     // Use staggered differencing along B
