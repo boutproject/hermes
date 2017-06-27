@@ -2504,7 +2504,11 @@ int Hermes::rhs(BoutReal time) {
 
     if(mesh->firstX()){
       BoutReal dz2 = mesh->dz*mesh->dz;
-      for(int i = mesh->xstart; i < mesh->xstart+5; i++)
+      int imax = mesh->xstart+4;
+      if (imax > mesh->xend) {
+        imax = mesh->xend;
+      }
+      for(int i = mesh->xstart; i <= imax; i++)
         for(int j=mesh->ystart;j<=mesh->yend;j++)
           for(int k=0;k<mesh->ngz-1;k++) {
             int kp = (k+1) % (mesh->ngz-1);
@@ -2535,7 +2539,11 @@ int Hermes::rhs(BoutReal time) {
 
     if(mesh->lastX()){ 
       BoutReal dz2 = mesh->dz*mesh->dz;
-      for(int i = mesh->xend-4; i <= mesh->xend; i++)
+      int imin = mesh->xend-4;
+      if (imin < mesh->xstart) {
+        imin = mesh->xstart;
+      }
+      for(int i = imin; i <= mesh->xend; i++)
         for(int j=mesh->ystart;j<=mesh->yend;j++)
           for(int k=0;k<mesh->ngz-1;k++) {
             int kp = (k+1) % (mesh->ngz-1);
