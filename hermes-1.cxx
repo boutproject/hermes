@@ -110,7 +110,6 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, drift_wave, false);
 
   OPTION(optsc, classical_diffusion, false);
-  OPTION(optsc, neoclassical_q, 0);
   OPTION(optsc, anomalous_D, -1);
   OPTION(optsc, anomalous_chi, -1);
   OPTION(optsc, anomalous_nu, -1);
@@ -231,13 +230,13 @@ int Hermes::init(bool restarting) {
   string source;
   FieldFactory fact(mesh);
   
-  if(sinks) {
+  if (sinks) {
     optsc->get("sink_invlpar", source, "0.05"); // 20 m
     sink_invlpar = fact.create2D(source);
     sink_invlpar *= rho_s0; // Normalise
     SAVE_ONCE(sink_invlpar);
 
-    if(drift_wave) {
+    if (drift_wave) {
       alpha_dw = fact.create2D("Hermes:alpha_dw");
       SAVE_ONCE(alpha_dw);
     }
@@ -267,11 +266,11 @@ int Hermes::init(bool restarting) {
   Spe /= Omega_ci;
   
   OPTION(optsc, core_sources, false);
-  if(core_sources) {
-    for(int x=mesh->xstart;x<=mesh->xend;x++) {
-      if(!mesh->periodicY(x)) {
+  if (core_sources) {
+    for (int x=mesh->xstart;x<=mesh->xend;x++) {
+      if (!mesh->periodicY(x)) {
         // Not periodic, so not in core
-        for(int y=mesh->ystart;y<=mesh->yend;y++) {
+        for (int y=mesh->ystart;y<=mesh->yend;y++) {
           Sn(x,y) = 0.0;
           Spe(x,y) = 0.0;
         }
@@ -306,44 +305,44 @@ int Hermes::init(bool restarting) {
   solver->add(Pe, "Pe");
   EvolvingVars.add(Ne, Pe);
 
-  if(output_ddt) {
+  if (output_ddt) {
     SAVE_REPEAT2(ddt(Ne), ddt(Pe));
   }
 
-  if(j_par || j_diamag) {
+  if (j_par || j_diamag) {
     // Have a source of vorticity
     solver->add(Vort, "Vort");
     EvolvingVars.add(Vort);
-    if(output_ddt) {
+    if (output_ddt) {
       SAVE_REPEAT(ddt(Vort));
     }
     
     // Save the potential
     SAVE_REPEAT(phi);
-  }else {
+  } else {
     Vort = 0.0;
   }
   
-  if(electromagnetic || FiniteElMass) {
+  if (electromagnetic || FiniteElMass) {
     solver->add(VePsi, "VePsi");
     EvolvingVars.add(VePsi);
-    if(output_ddt) {
+    if (output_ddt) {
       SAVE_REPEAT(ddt(VePsi));
     }
-  }else {
+  } else {
     // If both electrostatic and zero electron mass,
     // then Ohm's law has no time-derivative terms, 
     // but is calculated from other evolving quantities
     VePsi = 0.0;
   }
   
-  if(ion_velocity) {
+  if (ion_velocity) {
     solver->add(NVi, "NVi");
     EvolvingVars.add(NVi);
     if(output_ddt) {
       SAVE_REPEAT(ddt(NVi));
     }
-  }else {
+  } else {
     NVi = 0.0;
   }
   
@@ -354,7 +353,7 @@ int Hermes::init(bool restarting) {
   
   OPTION(optsc, adapt_source, false);
   
-  if(adapt_source) {
+  if (adapt_source) {
     // Adaptive sources to match profiles
 
     // PI controller, including an integrated difference term
@@ -548,7 +547,7 @@ int Hermes::init(bool restarting) {
 
     // Load necessary metrics for non-orth calculation
     Field2D etaxy, cosbeta;
-    if(mesh->get(etaxy,"etaxy")) {
+    if (mesh->get(etaxy,"etaxy")) {
         etaxy = 0.0;
     }
     cosbeta = sqrt(1. - SQ(etaxy));
@@ -923,9 +922,9 @@ int Hermes::rhs(BoutReal time) {
       
       BoutReal sheathmult = log(0.5*sqrt(mi_me/PI)); // Sheath multiplier Te -> phi (2.84522 for Deuterium)
       
-      if(boussinesq) {
+      if (boussinesq) {
 
-        if(split_n0) {
+        if (split_n0) {
           ////////////////////////////////////////////
           // Boussinesq, split
           // Split into axisymmetric and non-axisymmetric components
@@ -938,31 +937,31 @@ int Hermes::rhs(BoutReal time) {
           phi2D = laplacexy->solve(Vort2D, phi2D);
 
           // Solve non-axisymmetric part using X-Z solver
-          if(newXZsolver) {
+          if (newXZsolver) {
             newSolver->setCoefs(1./SQ(mesh->Bxy), 0.0);
             phi = newSolver->solve(Vort-Vort2D, phi);
-          }else {
+          } else {
             phiSolver->setCoefC(1./SQ(mesh->Bxy));
             //phi = phiSolver->solve((Vort-Vort2D)*SQ(mesh->Bxy), phi);
             phi = phiSolver->solve((Vort-Vort2D)*SQ(mesh->Bxy), sheathmult * (Telim - Telim.DC()));
           }
           phi += phi2D; // Add axisymmetric part
-        }else {
+        } else {
           ////////////////////////////////////////////
           // Boussinesq, non-split
           // Solve all components using X-Z solver
           
-          if(newXZsolver) {
+          if (newXZsolver) {
             // Use the new LaplaceXY solver
             //newSolver->setCoefs(1./SQ(mesh->Bxy), 0.0); // Set when initialised
             phi = newSolver->solve(Vort, phi);
-          }else {
+          } else {
             // Use older Laplacian solver
             //phiSolver->setCoefC(1./SQ(mesh->Bxy)); // Set when initialised
             phi = phiSolver->solve(Vort*SQ(mesh->Bxy), sheathmult*Telim);
           }
         }
-      }else {
+      } else {
         ////////////////////////////////////////////
         // Non-Boussinesq
         //
@@ -999,11 +998,11 @@ int Hermes::rhs(BoutReal time) {
   }
   
   // Collisional damping (normalised)
-  if(resistivity || (!electromagnetic && !FiniteElMass)) {
+  if (resistivity || (!electromagnetic && !FiniteElMass)) {
     // Need to calculate nu if electrostatic and zero electron mass
     nu = resistivity_multiply / (1.96 * tau_e * mi_me);
 
-    if(electron_neutral && (neutral_model != 0)) {
+    if (electron_neutral && (neutral_model != 0)) {
       /*
        * Include electron-neutral collisions. These can dominate
        * the resistivity at low temperatures (~1eV)
@@ -1024,12 +1023,12 @@ int Hermes::rhs(BoutReal time) {
     }
   }
 
-  if(thermal_conduction || sinks) {
+  if (thermal_conduction || sinks) {
     // Braginskii expression for parallel conduction
     // kappa ~ n * v_th^2 * tau
     kappa_epar = 3.2 * mi_me * Telim * Nelim * tau_e;
 
-    if(flux_limit_alpha > 0) {
+    if (flux_limit_alpha > 0) {
       /* Apply a flux limiter
        * 
        * Free streaming heat conduction calculated as:
@@ -1043,7 +1042,7 @@ int Hermes::rhs(BoutReal time) {
       kappa_epar = kappa_epar * kappa_fs / (kappa_epar + kappa_fs);
     }
     
-    if(kappa_limit_alpha > 0.0) {
+    if (kappa_limit_alpha > 0.0) {
       /*
        * A better flux limiter, as used in SOLPS. This doesn't require
        * an input length scale R0
@@ -1085,15 +1084,15 @@ int Hermes::rhs(BoutReal time) {
     // where the first term comes from finite electron mass, and the second
     // from the parallel component of the electric field
     // Note that psi is -A_|| so Jpar = Delp2(psi)
-    if(electromagnetic) {
-      if(FiniteElMass) {
+    if (electromagnetic) {
+      if (FiniteElMass) {
         // Solve Helmholtz equation for psi
         
         //aparSolver->setCoefA(-Ne*0.5*mi_me*beta_e);
         Field2D NDC = Ne.DC();
         aparSolver->setCoefs(1.0, -NDC*0.5*mi_me*beta_e);
         //aparSolver->setCoefs(1.0, -Ne*0.5*mi_me*beta_e);
-        if(split_n0_psi) {
+        if (split_n0_psi) {
           // Solve n=0 component separately
           
           aparXY->setCoefs(1.0, -NDC*0.5*mi_me*beta_e);
@@ -1102,7 +1101,7 @@ int Hermes::rhs(BoutReal time) {
           aparXY->solve(JDC, psi2D);
           
           psi = aparSolver->solve(- NDC*VePsi - JDC, psi-psi2D) + psi2D;
-        }else {
+        } else {
           psi = aparSolver->solve(-NDC*VePsi, psi);
           //psi = aparSolver->solve(-Ne*VePsi, psi);
         }
@@ -1131,7 +1130,7 @@ int Hermes::rhs(BoutReal time) {
       }
       
       //psi -= psi.DC(); // Remove toroidal average, only keep fluctuations
-    }else {
+    } else {
       // Electrostatic
       psi = 0.0;
       if(FiniteElMass) {
@@ -1189,8 +1188,8 @@ int Hermes::rhs(BoutReal time) {
 	  }
 	  
 	  // Sheath current
-      // Note that phi/Te >= 0.0 since for phi < 0 
-      // vesheath is the electron saturation current
+          // Note that phi/Te >= 0.0 since for phi < 0 
+          // vesheath is the electron saturation current
 	  BoutReal phi_te = floor(phisheath / Telim(r.ind, mesh->ystart, jz), 0.0);
       BoutReal vesheath = -sqrt(tesheath) * (sqrt(mi_me)/(2.*sqrt(PI))) * exp(-phi_te);
       
@@ -1791,7 +1790,7 @@ int Hermes::rhs(BoutReal time) {
   ddt(Ne) = -Div_n_bxGrad_f_B_XPPM(Ne, phi, ne_bndry_flux, poloidal_flows, true); // ExB drift
 
   // Parallel flow
-  if(parallel_flow) {
+  if (parallel_flow) {
     //ddt(Ne) -= Div_parP_LtoC(Ne, Ve);
     ddt(Ne) -= Div_par_FV_FS(Ne, Ve, sqrt(mi_me)*sound_speed);
   }
@@ -1806,16 +1805,14 @@ int Hermes::rhs(BoutReal time) {
     ddt(Ne) += NeTarget / ramp_timescale;
   }
   
-  if(classical_diffusion) {
+  if (classical_diffusion) {
     // Classical perpendicular diffusion
-    //Dn = (1. + 1.3*SQ(neoclassical_q)) * 2. / (tau_e0*Omega_ci * mi_me);
     
     Dn = (Telim + Ti) / ( tau_e * mi_me * SQ(mesh->Bxy) );
     ddt(Ne) += Div_Perp_Lap_FV(Dn, Ne, ne_bndry_flux);
     ddt(Ne) -= Div_Perp_Lap_FV(0.5*Ne / ( tau_e * mi_me * SQ(mesh->Bxy) ), Te, ne_bndry_flux);
-    //ddt(Ne) += Div_Perp_Lap_XYZ(Dn, Ne, ne_bndry_flux);
   }
-  if(anomalous_D > 0.0) {
+  if (anomalous_D > 0.0) {
     ddt(Ne) += Div_Perp_Lap_FV(anomalous_D, Ne.DC(), ne_bndry_flux);
     //ddt(Ne) += Div_Perp_Lap_XYZ(anomalous_D, Ne, ne_bndry_flux);
   }
@@ -1998,13 +1995,11 @@ int Hermes::rhs(BoutReal time) {
       ddt(Vort) += Div_Perp_Lap_FV( (0.5*dnidt)/SQ(mesh->Bxy), phi, vort_bndry_flux);
     }
     
-    if(classical_diffusion) {
+    if (classical_diffusion) {
       ///Field3D mu = 0.75*(1.+1.6*SQ(neoclassical_q))/tau_i;
       Field3D mu = 0.3 * Ti/(tau_i * SQ(mesh->Bxy));
       ddt(Vort) += Div_Perp_Lap_FV( mu, Vort, vort_bndry_flux);
-      //output.write("\nmu: %e -> %e\n", min(mu), max(mu));
-      //ddt(Vort) += Div_Perp_Lap_XYZ( mu, Vort, vort_bndry_flux);
-    }
+      }
     
     if(anomalous_nu > 0.0) {
       // Perpendicular anomalous momentum diffusion
@@ -2135,7 +2130,7 @@ int Hermes::rhs(BoutReal time) {
   
   ///////////////////////////////////////////////////////////
   // Ion velocity
-  if(ion_velocity) {
+  if (ion_velocity) {
     TRACE("Ion velocity");
     
     ddt(NVi) = -Div_n_bxGrad_f_B_XPPM(NVi, phi, ne_bndry_flux, poloidal_flows); // ExB drift

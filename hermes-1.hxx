@@ -150,8 +150,6 @@ private:
   
   bool classical_diffusion; // Collisional diffusion, including viscosity
   
-  BoutReal neoclassical_q; // Enhances diffusion coefficients
-  
   // Anomalous perpendicular diffusion coefficients
   BoutReal anomalous_D;    // Density diffusion
   BoutReal anomalous_chi;  // Electron thermal diffusion
