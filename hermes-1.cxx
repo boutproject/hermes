@@ -169,7 +169,7 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, Nnorm, 1e19); // Reference density [m^-3]
   OPTION(optsc, Bnorm, 1.0);  // Reference magnetic field [T]
 
-  OPTION(optsc, AA, 2.0); // Ion mass
+  OPTION(optsc, AA, 2.0); // Ion mass (2 = Deuterium)
 
   output.write("Normalisation Te=%e, Ne=%e, B=%e\n", Tnorm, Nnorm, Bnorm);
   SAVE_ONCE4(Tnorm, Nnorm, Bnorm, AA); // Save
@@ -394,6 +394,8 @@ int Hermes::init(bool restarting) {
         pe_error_integral = -1. / source_i;
       }
 
+      OPTION(optsc, temperature_feedback, false); // Feedback on Te rather than Pe
+      
     } else {
       // Evolving the source profiles
 
@@ -745,6 +747,7 @@ int Hermes::init(bool restarting) {
   TeMesh /= Tnorm; // Normalise
 
   NeTarget = NeMesh;
+  TeTarget = TeMesh;
   PeTarget = NeMesh * TeMesh;
 
   if (!restarting && !ramp_mesh) {
@@ -2505,7 +2508,15 @@ int Hermes::rhs(BoutReal time) {
 
   if (adapt_source) {
     // Add source. Ensure that sink will go to zero as Pe -> 0
-    Field2D PeErr = averageY(Pe.DC() - PeTarget);
+    Field2D PeErr;
+
+    if (!temperature_feedback) {
+      // Feedback on the pressure. This is the default
+      PeErr = averageY(Pe.DC() - PeTarget);
+    } else {
+      // Feedback on temperature
+      PeErr = averageY(Te.DC() - TeTarget);
+    }
 
     if (adapt_fix_form) {
       // Fix the form of the source function

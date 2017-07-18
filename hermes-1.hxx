@@ -240,12 +240,13 @@ private:
 
   bool ramp_mesh; // Use Ne,Pe in the grid file for starting ramp target
   BoutReal ramp_timescale;    // Length of time for the initial ramp
-  Field2D NeTarget, PeTarget; // For adaptive sources
+  Field2D NeTarget, TeTarget, PeTarget; // For adaptive sources
 
   bool adapt_source;           // Use a PI controller to feedback profiles
   bool adapt_fix_form;         // Fix the form of the source
   bool core_sources;           // Sources only in the core
   bool energy_source;          // Add the same amount of energy to each particle
+  bool temperature_feedback;   // Feedback power source on temperature rather than pressure
   BoutReal source_p, source_i; // Proportional-Integral controller
   Field2D Sn, Spe;             // Sources in density and Pe
   BoutReal total_Sn, total_Spe; // Sum over all cells
