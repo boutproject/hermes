@@ -117,7 +117,8 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, flux_limit_alpha, -1);
   OPTION(optsc, kappa_limit_alpha, -1);
   OPTION(optsc, eta_limit_alpha, -1);
- 
+
+  // Numerical dissipation terms
   OPTION(optsc, numdiff, -1.0);
   OPTION(optsc, neut_numdiff, numdiff); 
   OPTION(optsc, hyper, -1);
@@ -136,9 +137,11 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, pe_hyper_z, -1.0);
 
   OPTION(optsc, low_n_diffuse, true);
+  OPTION(optsc, low_n_diffuse_perp, false);
 
   OPTION(optsc, resistivity_multiply, 1.0);
 
+  // Sheath boundary conditions
   OPTION(optsc, sheath_model, 0);
   OPTION(optsc, sheath_gamma, 6.5);
   OPTION(optsc, neutral_gamma, 5./4);
@@ -710,9 +713,9 @@ int Hermes::init(bool restarting) {
   TRACE("Reading profiles");
   
   Field2D NeMesh, TeMesh; 
-  if(mesh->get(NeMesh, "Ne0")) {
+  if (mesh->get(NeMesh, "Ne0")) {
     // No Ne0. Try Ni0
-    if(mesh->get(NeMesh, "Ni0")) {
+    if (mesh->get(NeMesh, "Ni0")) {
       output << "WARNING: Neither Ne0 nor Ni0 found in mesh input\n";
     }
   }
@@ -720,11 +723,11 @@ int Hermes::init(bool restarting) {
   
   NeMesh /= Nnorm; // Normalise
   
-  if(mesh->get(TeMesh, "Te0")) {
+  if (mesh->get(TeMesh, "Te0")) {
     // No Te0
     output << "WARNING: Te0 not found in mesh\n";
     // Try to read Ti0
-    if(mesh->get(TeMesh, "Ti0")) {
+    if (mesh->get(TeMesh, "Ti0")) {
       // No Ti0 either
       output << "WARNING: No Te0 or Ti0. Setting TeMesh to 0.0\n";
       TeMesh = 0.0;
@@ -736,27 +739,27 @@ int Hermes::init(bool restarting) {
   NeTarget = NeMesh;
   PeTarget = NeMesh * TeMesh;
   
-  if(!restarting && !ramp_mesh) {
+  if (!restarting && !ramp_mesh) {
     bool startprofiles;
     OPTION(optsc, startprofiles, true);
-    if(startprofiles) {
+    if (startprofiles) {
       Ne += NeMesh; // Add profiles in the mesh file
       
       Pe += NeMesh * TeMesh;
     }
     
     // Check for negatives
-    if(min(Ne, true) < 0.0) {
+    if (min(Ne, true) < 0.0) {
       throw BoutException("Starting density is negative");
     }
-    if(max(Ne, true) < 1e-5) {
+    if (max(Ne, true) < 1e-5) {
       throw BoutException("Starting density is too small");
     }
     
-    if(min(Pe, true) < 0.0) {
+    if (min(Pe, true) < 0.0) {
       throw BoutException("Starting pressure is negative");
     }
-    if(max(Pe, true) < 1e-5) {
+    if (max(Pe, true) < 1e-5) {
       throw BoutException("Starting pressure is too small");
     }
     
@@ -769,7 +772,7 @@ int Hermes::init(bool restarting) {
   
   Curlb_B.covariant = false; // Contravariant
   mesh->get(Curlb_B, "bxcv");
-  if(mesh->ShiftXderivs) {
+  if (mesh->ShiftXderivs) {
     Field2D I;
     mesh->get(I,    "sinty");
     Curlb_B.z += I*Curlb_B.x;
@@ -781,22 +784,22 @@ int Hermes::init(bool restarting) {
   
   Curlb_B *= 2./mesh->Bxy;
   
-  if(j_par) {
+  if (j_par) {
     SAVE_REPEAT(Ve);
   
-    if(electromagnetic)
+    if (electromagnetic)
       SAVE_REPEAT(psi);
   }
   
   OPTION(optsc, split_n0, false); // Split into n=0 and n~=0
   OPTION(optsc, split_n0_psi, split_n0);
   // Phi solver
-  if(phi3d) {
+  if (phi3d) {
 #ifdef PHISOLVER
     phiSolver3D = Laplace3D::create();
 #endif
-  }else {
-    if(split_n0) {
+  } else {
+    if (split_n0) {
       // Create an XY solver for n=0 component
       laplacexy = new LaplaceXY(mesh);
       // Set coefficients for Boussinesq solve
@@ -806,12 +809,12 @@ int Hermes::init(bool restarting) {
     
     // Create an XZ solver
     OPTION(optsc, newXZsolver, false);
-    if(newXZsolver) {
+    if (newXZsolver) {
       // Test new LaplaceXZ solver
       newSolver = LaplaceXZ::create(mesh);
       // Set coefficients for Boussinesq solve
       newSolver->setCoefs(1./SQ(mesh->Bxy), 0.0);
-    }else {
+    } else {
       // Use older Laplacian solver
       phiSolver  = Laplacian::create(opt->getSection("phiSolver"));
       // Set coefficients for Boussinesq solve
@@ -824,7 +827,7 @@ int Hermes::init(bool restarting) {
   // Apar (Psi) solver
   //aparSolver = Laplacian::create(opt->getSection("aparSolver"));
   aparSolver = LaplaceXZ::create(mesh, opt->getSection("aparSolver"));
-  if(split_n0_psi) {
+  if (split_n0_psi) {
     // Use another XY solver for n=0 psi component
     aparXY = new LaplaceXY(mesh);
     psi2D = 0.0;
@@ -840,10 +843,10 @@ int Hermes::init(bool restarting) {
   Dn = 0.0;
   
   SAVE_REPEAT(Telim);
-  if(verbose) {
+  if (verbose) {
     SAVE_REPEAT(Jpar);
     SAVE_REPEAT(kappa_epar);
-    if(resistivity)
+    if (resistivity)
       SAVE_REPEAT(nu);
     //SAVE_REPEAT2(wall_flux, wall_power);
   }
@@ -859,7 +862,7 @@ int Hermes::init(bool restarting) {
 int Hermes::rhs(BoutReal time) {
   //printf("TIME = %e\r", time);
 
-  if(!evolve_plasma) {
+  if (!evolve_plasma) {
     Ne = 0.0;
     Pe = 0.0;
     Vort = 0.0;
@@ -1927,6 +1930,9 @@ int Hermes::rhs(BoutReal time) {
     // help prevent negative density regions
     ddt(Ne) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*1e-4/Nelim, Ne, false);
   }
+  if (low_n_diffuse_perp) {
+    ddt(Ne) += Div_Perp_Lap_FV_Index(1e-4/Nelim, Ne, ne_bndry_flux);
+  }
 
   if (ne_hyper_z > 0.) {
     ddt(Ne) -= ne_hyper_z*SQ(SQ(mesh->dz))*D4DZ4(Ne);
@@ -1999,7 +2005,7 @@ int Hermes::rhs(BoutReal time) {
       ///Field3D mu = 0.75*(1.+1.6*SQ(neoclassical_q))/tau_i;
       Field3D mu = 0.3 * Ti/(tau_i * SQ(mesh->Bxy));
       ddt(Vort) += Div_Perp_Lap_FV( mu, Vort, vort_bndry_flux);
-      }
+    }
     
     if(anomalous_nu > 0.0) {
       // Perpendicular anomalous momentum diffusion
@@ -2492,7 +2498,7 @@ int Hermes::rhs(BoutReal time) {
   ///////////////////////////////////////////////////////////
   // Radial buffer regions for turbulence simulations
   
-  if(radial_buffers) {
+  if (radial_buffers) {
     /// Radial buffer regions
   
     BoutReal bufferD = 1.0;
@@ -3001,9 +3007,9 @@ int Hermes::rhs(BoutReal time) {
       }
       
       // Density evolution
-      for(int i=0;i<mesh->ngx;i++)
-        for(int j=0;j<mesh->ngy;j++) {
-          if((Nn2D(i,j) < 1e-8) && (ddt(Nn2D)(i,j) < 0.0)) {
+      for (int i=0;i<mesh->ngx;i++)
+        for (int j=0;j<mesh->ngy;j++) {
+          if ((Nn2D(i,j) < 1e-8) && (ddt(Nn2D)(i,j) < 0.0)) {
             ddt(Nn2D)(i,j) = 0.0;
           }
         }
@@ -3170,7 +3176,7 @@ int Hermes::rhs(BoutReal time) {
       TRACE("Neutral boundary fluxes");
       wall_flux = 0.0;
       
-      if(sheath_ydown) {
+      if (sheath_ydown) {
         for(RangeIterator r=mesh->iterateBndryLowerY(); !r.isDone(); r++) {
           // Calculate flux of ions into target from Ne and Vi boundary
           // This calculation is supposed to be consistent with the flow
@@ -3276,7 +3282,7 @@ int Hermes::rhs(BoutReal time) {
   //////////////////////////////////////////////////////////////
   // Parallel closures for 2D simulations
   
-  if(sinks) {
+  if (sinks) {
     // Sink terms for 2D simulations
     
     //Field3D nsink = 0.5*Ne*sqrt(Telim)*sink_invlpar;   // n C_s/ (2L)  // Sound speed flow to targets
@@ -3292,7 +3298,7 @@ int Hermes::rhs(BoutReal time) {
       + Te*nsink                  // Advection
       ;
     
-    if(sheath_closure) {
+    if (sheath_closure) {
       ///////////////////////////
       // Sheath dissipation closure
 
@@ -3300,7 +3306,7 @@ int Hermes::rhs(BoutReal time) {
       Field3D jsheath = Nelim*sqrt(Telim) * ( 1 - (sqrt(mi_me)/(2.*sqrt(PI))) * exp(-phi_te) );
       
       ddt(Vort) += jsheath * sink_invlpar;
-    }else {
+    } else {
       ///////////////////////////
       // Vorticity closure
       ddt(Vort) -= Div_Perp_Lap_FV( nsink/SQ(mesh->Bxy), phi, vort_bndry_flux);
@@ -3310,7 +3316,7 @@ int Hermes::rhs(BoutReal time) {
       
     }
     
-    if(drift_wave) {
+    if (drift_wave) {
       // Include a drift-wave closure in the core region
       // as in Hasegawa-Wakatani and SOLT models
       
@@ -3327,23 +3333,23 @@ int Hermes::rhs(BoutReal time) {
     // Electron and ion parallel dynamics not evolved
   }
 
-  if(low_pass_z >= 0) {
+  if (low_pass_z >= 0) {
     // Low pass Z filtering, keeping up to and including low_pass_z
     ddt(Ne) = lowPass(ddt(Ne), low_pass_z);
     ddt(Pe) = lowPass(ddt(Pe), low_pass_z);
 
-    if(currents) {
+    if (currents) {
       ddt(Vort) = lowPass(ddt(Vort), low_pass_z);
-      if(electromagnetic || FiniteElMass) {
+      if (electromagnetic || FiniteElMass) {
         ddt(VePsi) = lowPass(ddt(VePsi), low_pass_z);
       }
     }
-    if(ion_velocity) {
+    if (ion_velocity) {
       ddt(NVi) = lowPass(ddt(NVi), low_pass_z);
     }
   }
 
-  if(!evolve_plasma) {
+  if (!evolve_plasma) {
     ddt(Ne) = 0.0;
     ddt(Pe) = 0.0;
     ddt(Vort) = 0.0;
