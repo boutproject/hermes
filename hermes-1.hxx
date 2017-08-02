@@ -179,6 +179,9 @@ private:
   bool drift_wave;     // Drift-wave closure (if sinks=true)
 
   bool radial_buffers; // Radial buffer regions
+  int radial_inner_width; // Number of points in the inner radial buffer
+  int radial_outer_width; // Number of points in the outer radial buffer
+  BoutReal radial_buffer_D; // Diffusion in buffer region
 
   Field2D sink_invlpar; // Parallel inverse connection length (1/L_{||}) for
                         // sink terms
@@ -227,13 +230,13 @@ private:
   bool ADpar_phine; // Include 1/Ne factor in phi ADpar term
   bool ADpar_bndry; // Boundaries included in ADpar?
   int low_pass_z;   // Fourier filter in Z
-  BoutReal z_hyper_viscos, x_hyper_viscos,
-      y_hyper_viscos; // 4th-order derivatives
+  BoutReal z_hyper_viscos, x_hyper_viscos, y_hyper_viscos; // 4th-order derivatives
   bool low_n_diffuse; // Diffusion in parallel direction at low density
-  bool
-      low_n_diffuse_perp; // Diffusion in perpendicular direction at low density
+  bool low_n_diffuse_perp; // Diffusion in perpendicular direction at low density
   BoutReal ne_hyper_z, pe_hyper_z; // Hyper-diffusion
 
+  bool vepsi_dissipation; // Dissipation term in VePsi equation
+  
   BoutReal resistivity_multiply; ///< Factor in front of nu
 
   // Sources and profiles

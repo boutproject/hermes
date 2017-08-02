@@ -41,13 +41,17 @@ BoutReal floor(const BoutReal &var, const BoutReal &f) {
 }
 
 const Field3D ceil(const Field3D &var, BoutReal f) {
-  Field3D result = copy(var);
-
-  for (int jx = 0; jx < mesh->ngx; jx++)
-    for (int jy = 0; jy < mesh->ngy; jy++)
-      for (int jz = 0; jz < mesh->ngz; jz++) {
-        if (result(jx, jy, jz) > f)
+  Field3D result;
+  result.allocate();
+  
+  for (int jx=0;jx<mesh->ngx;jx++)
+    for (int jy=0;jy<mesh->ngy;jy++)
+      for (int jz=0;jz<mesh->ngz;jz++) {
+        if (var(jx, jy, jz) < f) {
+          result(jx, jy, jz) = var(jx,jy,jz);
+        } else {
           result(jx, jy, jz) = f;
+        }
       }
   return result;
 }
@@ -132,13 +136,15 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, x_hyper_viscos, -1.0);
   OPTION(optsc, y_hyper_viscos, -1.0);
   OPTION(optsc, z_hyper_viscos, -1.0);
-
+  
   OPTION(optsc, ne_hyper_z, -1.0);
   OPTION(optsc, pe_hyper_z, -1.0);
 
   OPTION(optsc, low_n_diffuse, true);
   OPTION(optsc, low_n_diffuse_perp, false);
 
+  OPTION(optsc, vepsi_dissipation, false);
+  
   OPTION(optsc, resistivity_multiply, 1.0);
 
   // Sheath boundary conditions
@@ -159,6 +165,9 @@ int Hermes::init(bool restarting) {
   }
 
   OPTION(optsc, radial_buffers, false);
+  OPTION(optsc, radial_inner_width, 4);
+  OPTION(optsc, radial_outer_width, 4);
+  OPTION(optsc, radial_buffer_D, 1.0);
 
   // Output additional information
   OPTION(optsc, verbose, false);    // Save additional fields
@@ -933,10 +942,8 @@ int Hermes::rhs(BoutReal time) {
       // phiSolver->setInnerBoundaryFlags(INVERT_DC_GRAD);
       // phiSolver->setOuterBoundaryFlags(INVERT_SET);
 
-      BoutReal sheathmult =
-          log(0.5 *
-              sqrt(mi_me /
-                   PI)); // Sheath multiplier Te -> phi (2.84522 for Deuterium)
+      // Sheath multiplier Te -> phi (2.84522 for Deuterium)
+      BoutReal sheathmult = log(0.5 * sqrt(mi_me / PI));
 
       if (boussinesq) {
 
@@ -951,7 +958,7 @@ int Hermes::rhs(BoutReal time) {
           phi2D.setBoundaryTo(sheathmult * Telim.DC());
 
           phi2D = laplacexy->solve(Vort2D, phi2D);
-
+          
           // Solve non-axisymmetric part using X-Z solver
           if (newXZsolver) {
             newSolver->setCoefs(1. / SQ(mesh->Bxy), 0.0);
@@ -977,6 +984,35 @@ int Hermes::rhs(BoutReal time) {
             // Use older Laplacian solver
             // phiSolver->setCoefC(1./SQ(mesh->Bxy)); // Set when initialised
             phi = phiSolver->solve(Vort * SQ(mesh->Bxy), sheathmult * Telim);
+
+            /*
+            Field2D phidc = phi.DC();
+            // Get gradient at outer boundary
+            BoutReal gradient[mesh->ngy];
+            for (int y=0;y<mesh->ngy;y++) {
+              gradient[y] = phidc(mesh->xend+1,y) - phidc(mesh->xend,y);
+            }
+            // Broadcast to other processors sharing this X boundary
+            MPI_Comm xcomm = mesh->getXcomm();
+            int nxpe;
+            MPI_Comm_size(xcomm, &nxpe);
+            MPI_Bcast( gradient, mesh->ngy, MPI_DOUBLE, nxpe-1, xcomm);
+            // Now subtract the gradient from the mean electric field
+            // so that the gradient is zero at the outer edge
+            // This imposes zero value and zero gradient at the outer
+            // boundary
+
+            for (int i=0;i<mesh->ngx;i++) {
+              BoutReal xdist = mesh->GlobalNx - mesh->XGLOBAL(i) - 2.5;
+              //output.write("%d: %e\n", i, xdist);
+              for (int j=0;j<mesh->ngy;j++) {
+                BoutReal change = xdist * gradient[j];
+                for (int k=0;k<mesh->ngz-1;k++) {
+                  phi(i,j,k) += change;
+                }
+              }
+            }
+            */
           }
         }
       } else {
@@ -984,8 +1020,7 @@ int Hermes::rhs(BoutReal time) {
         // Non-Boussinesq
         //
         phiSolver->setCoefC(Nelim / SQ(mesh->Bxy));
-        phi =
-            phiSolver->solve(Vort * SQ(mesh->Bxy) / Nelim, sheathmult * Telim);
+        phi = phiSolver->solve(Vort * SQ(mesh->Bxy) / Nelim, sheathmult * Telim);
       }
     }
     phi.applyBoundary(time);
@@ -2244,6 +2279,22 @@ int Hermes::rhs(BoutReal time) {
     if (hyperpar > 0.0) {
       ddt(VePsi) -= D4DY4_FV(SQ(SQ(mesh->dy)), Ve - Vi);
     }
+
+    if (vepsi_dissipation) {
+      // Adds dissipation term like in other equations
+      // Maximum speed either electron sound speed or Alfven speed
+      Field3D max_speed = Bnorm*mesh->Bxy / sqrt(SI::mu0* AA*SI::Mp*Nnorm*Nelim) / Cs0; // Alfven speed (normalised by Cs0)
+      Field3D elec_sound = sqrt(mi_me)*sound_speed; // Electron sound speed
+      for (int jx=0;jx<mesh->ngx;jx++)
+        for (int jy=0;jy<mesh->ngy;jy++)
+          for (int jz=0;jz<mesh->ngz;jz++) {
+            if (elec_sound(jx, jy, jz) > max_speed(jx, jy, jz)) {
+              max_speed(jx, jy, jz) = elec_sound(jx, jy, jz);
+            }
+      }
+      
+      ddt(VePsi) -= Div_par_FV_FS(Ve-Vi, 0.0, max_speed);
+    }
   }
 
   ///////////////////////////////////////////////////////////
@@ -2648,71 +2699,108 @@ int Hermes::rhs(BoutReal time) {
   if (radial_buffers) {
     /// Radial buffer regions
 
-    BoutReal bufferD = 1.0;
-
-    if (mesh->firstX()) {
-      BoutReal dz2 = mesh->dz * mesh->dz;
-      int imax = mesh->xstart + 4;
+    // Calculate Z averages
+    Field2D PeDC = Pe.DC();
+    Field2D NeDC = Ne.DC();
+    Field2D VortDC = Vort.DC();
+    
+    if ((mesh->XGLOBAL(mesh->xstart) - mesh->xstart) < radial_inner_width) {
+      // This processor contains points inside the inner radial boundary
+      
+      int imax = mesh->xstart + radial_inner_width - 1
+        - (mesh->XGLOBAL(mesh->xstart) - mesh->xstart);
       if (imax > mesh->xend) {
         imax = mesh->xend;
       }
-      for (int i = mesh->xstart; i <= imax; i++)
-        for (int j = mesh->ystart; j <= mesh->yend; j++)
-          for (int k = 0; k < mesh->ngz - 1; k++) {
-            int kp = (k + 1) % (mesh->ngz - 1);
-            int km = (k - 1 + mesh->ngz - 1) % (mesh->ngz - 1);
+      
+      int imin =mesh->xstart;
+      if (!mesh->firstX()) {
+        --imin; // Calculate in guard cells, for radial fluxes
+      }
+      int ncz = mesh->ngz - 1;
+      
+      for (int i = imin; i <= imax; ++i) {
+        // position inside the boundary (0 = on boundary, 0.5 = first cell)
+        BoutReal pos = static_cast<BoutReal>(mesh->XGLOBAL(i) - mesh->xstart) + 0.5;
+        
+        // Diffusion coefficient which increases towards the boundary
+        BoutReal D = radial_buffer_D * (1. - pos / radial_inner_width);
+        
+        for (int j = mesh->ystart; j <= mesh->yend; ++j) {
+          BoutReal dx = mesh->dx(i,j);
+          BoutReal dx_xp = mesh->dx(i+1,j);
+          BoutReal J = mesh->J(i,j);
+          BoutReal J_xp = mesh->J(i+1,j);
 
-            // Z fluxes
+          // Calculate metric factors for radial fluxes
+          BoutReal rad_flux_factor = 0.25*(J + J_xp)*(dx + dx_xp);
+          BoutReal x_factor = rad_flux_factor / (J * dx);
+          BoutReal xp_factor = rad_flux_factor / (J_xp * dx_xp);
+          
+          for (int k = 0; k < ncz; ++k) {
+            // Relax towards constant value on flux surface
+            ddt(Pe)(i,j,k) -= D*(Pe(i,j,k) - PeDC(i,j));
+            ddt(Ne)(i,j,k) -= D*(Ne(i,j,k) - NeDC(i,j));
+            ddt(Vort)(i,j,k) -= D*(Vort(i,j,k) - VortDC(i,j));
 
-            ddt(Pe)(i, j, k) +=
-                bufferD * mesh->g33(i, j) *
-                (Pe(i, j, km) - 2. * Pe(i, j, k) + Pe(i, j, kp)) / dz2;
-
-            ddt(Ne)(i, j, k) +=
-                bufferD * mesh->g33(i, j) *
-                (Ne(i, j, km) - 2. * Ne(i, j, k) + Ne(i, j, kp)) / dz2;
             // Radial fluxes
+            BoutReal f = D * (Ne(i + 1, j, k) - Ne(i, j, k));
+            ddt(Ne)(i, j, k) += f * x_factor;
+            ddt(Ne)(i + 1, j, k) -= f * xp_factor;
 
-            BoutReal f = 0.1 * bufferD * mesh->g11(i, j) *
-                         (Ne(i + 1, j, k) - Ne(i, j, k)) / SQ(mesh->dx(i, j));
-            ddt(Ne)(i, j, k) += f;
-            ddt(Ne)(i + 1, j, k) -= f;
+            f = D * (Pe(i + 1, j, k) - Pe(i, j, k));
+            ddt(Pe)(i, j, k) += f * x_factor;
+            ddt(Pe)(i + 1, j, k) -= f * xp_factor;
 
-            f = 0.1 * bufferD * mesh->g11(i, j) *
-                (Pe(i + 1, j, k) - Pe(i, j, k)) / SQ(mesh->dx(i, j));
-            ddt(Pe)(i, j, k) += f;
-            ddt(Pe)(i + 1, j, k) -= f;
-
-            // ddt(Vort)(i,j,k) += bufferD*mesh->g33(i,j)*(Vort(i,j,km) -
-            // 2.*Vort(i,j,k) + Vort(i,j,kp))/dz2;
-
-            // ddt(Vort)(i,j,k) -= 0.01*Vort(i,j,k);
+            f = D * (Vort(i + 1, j, k) - Vort(i, j, k));
+            ddt(Vort)(i, j, k) += f * x_factor;
+            ddt(Vort)(i + 1, j, k) -= f * xp_factor;
           }
+        }
+      }
     }
-
-    if (mesh->lastX()) {
-      BoutReal dz2 = mesh->dz * mesh->dz;
-      int imin = mesh->xend - 4;
+    // Number of points in outer guard cells
+    int nguard = mesh->ngx-mesh->xend-1;
+    
+    if (mesh->GlobalNx - nguard - mesh->XGLOBAL(mesh->xend) <= radial_outer_width) {
+      
+      // Outer boundary
+      int imin = mesh->GlobalNx - nguard - radial_outer_width - mesh->XGLOBAL(0);
       if (imin < mesh->xstart) {
         imin = mesh->xstart;
       }
-      for (int i = imin; i <= mesh->xend; i++)
-        for (int j = mesh->ystart; j <= mesh->yend; j++)
-          for (int k = 0; k < mesh->ngz - 1; k++) {
-            int kp = (k + 1) % (mesh->ngz - 1);
-            int km = (k - 1 + mesh->ngz - 1) % (mesh->ngz - 1);
-            ddt(Pe)(i, j, k) +=
-                bufferD * mesh->g33(i, j) *
-                (Pe(i, j, km) - 2. * Pe(i, j, k) + Pe(i, j, kp)) / dz2;
-            ddt(Ne)(i, j, k) +=
-                bufferD * mesh->g33(i, j) *
-                (Ne(i, j, km) - 2. * Ne(i, j, k) + Ne(i, j, kp)) / dz2;
-            ddt(Vort)(i, j, k) +=
-                bufferD * mesh->g33(i, j) *
-                (Vort(i, j, km) - 2. * Vort(i, j, k) + Vort(i, j, kp)) / dz2;
+      int ncz = mesh->ngz - 1;
+      for (int i = imin; i <= mesh->xend; ++i) {
 
-            // ddt(Vort)(i,j,k) -= 0.01*Vort(i,j,k);
+        // position inside the boundary
+        BoutReal pos = static_cast<BoutReal>(mesh->GlobalNx - nguard -  mesh->XGLOBAL(i)) - 0.5;
+        
+        // Diffusion coefficient which increases towards the boundary
+        BoutReal D = radial_buffer_D * (1. - pos / radial_outer_width);
+        
+        for (int j = mesh->ystart; j <= mesh->yend; ++j) {
+          BoutReal dx = mesh->dx(i,j);
+          BoutReal dx_xp = mesh->dx(i+1,j);
+          BoutReal J = mesh->J(i,j);
+          BoutReal J_xp = mesh->J(i+1,j);
+
+          // Calculate metric factors for radial fluxes
+          BoutReal rad_flux_factor = 0.25*(J + J_xp)*(dx + dx_xp);
+          BoutReal x_factor = rad_flux_factor / (J * dx);
+          BoutReal xp_factor = rad_flux_factor / (J_xp * dx_xp);
+          
+          for (int k = 0; k < ncz; ++k) {
+            ddt(Pe)(i,j,k) -= D*(Pe(i,j,k) - PeDC(i,j));
+            ddt(Ne)(i,j,k) -= D*(Ne(i,j,k) - NeDC(i,j));
+            ddt(Vort)(i,j,k) -= D*(Vort(i,j,k) - VortDC(i,j));
+            //ddt(Vort)(i,j,k) -= D*Vort(i,j,k);
+            
+            BoutReal f = D * (Vort(i + 1, j, k) - Vort(i, j, k));
+            ddt(Vort)(i, j, k) += f * x_factor;
+            ddt(Vort)(i + 1, j, k) -= f * xp_factor;
           }
+        }
+      }
     }
   }
 
