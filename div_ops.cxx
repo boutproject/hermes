@@ -1028,7 +1028,8 @@ const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n_in, const Field3D &f_in,
 
         // Upwind(s, mesh->dx(i,j));
         // XPPM(s, mesh->dx(i,j));
-        Fromm(s, mesh->dx(i, j));
+        //Fromm(s, mesh->dx(i, j));
+        MC(s, mesh->dx(i, j));
 
         // Right side
         if ((i == mesh->xend) && (mesh->lastX())) {
@@ -1103,7 +1104,8 @@ const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n_in, const Field3D &f_in,
 
         // Upwind(s, mesh->dz);
         // XPPM(s, mesh->dz);
-        Fromm(s, mesh->dz);
+        //Fromm(s, mesh->dz);
+        MC(s, mesh->dz);
 
         if (vU > 0.0) {
           BoutReal flux = vU * s.R / (mesh->J(i, j) * mesh->dz);
@@ -1430,7 +1432,8 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v,
 
         // Upwind(s, mesh->dz);
         // XPPM(s, mesh->dz);
-        Fromm(s, mesh->dz);
+        //Fromm(s, mesh->dz);
+        MC(s, mesh->dz);
 
         if (vU > 0.0) {
           BoutReal flux = vU * s.R / mesh->dz;
@@ -1717,8 +1720,9 @@ const Field3D Div_par_FV(const Field3D &f, const Field3D &v) {
         }
 
         // Upwind(s, mesh->dy(i,j));  // 1st order accurate
-        Fromm(s, mesh->dy(i, j)); // 2nd order, some upwinding
-                                  // XPPM(s, mesh->dy(i,j));    // High order
+        //Fromm(s, mesh->dy(i, j)); // 2nd order, some upwinding
+        // XPPM(s, mesh->dy(i,j));    // High order
+        MC(s, mesh->dy(i,j));
 
         // Calculate velocity at right boundary (y+1/2)
         BoutReal vpar = 0.5 * (v(i, j, k) + v(i, j + 1, k));
