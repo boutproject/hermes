@@ -2352,6 +2352,11 @@ int Hermes::rhs(BoutReal time) {
           Div_Perp_Lap_FV(Vi.DC() * anomalous_D, Ne.DC(), ne_bndry_flux);
       // ddt(NVi) += Div_Perp_Lap_XYZ(Vi*anomalous_D, Ne, ne_bndry_flux);
     }
+    if (anomalous_nu > 0.0) {
+      // Perpendicular anomalous momentum diffusion
+      ddt(NVi) += Div_Perp_Lap_FV(anomalous_nu * Ne.DC(), Vi.DC(), ne_bndry_flux);
+    }
+    
     if (ExBdiff > 0.0) {
 
       if (ExBpar) {
