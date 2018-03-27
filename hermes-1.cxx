@@ -64,6 +64,8 @@ int Hermes::init(bool restarting) {
 
   OPTION(optsc, evolve_plasma, true);
 
+  OPTION(optsc, isothermal, false);
+
   OPTION(optsc, electromagnetic, true);
   OPTION(optsc, FiniteElMass, true);
 
@@ -888,6 +890,11 @@ int Hermes::rhs(BoutReal time) {
     VePsi = 0.0;
     NVi = 0.0;
     sheath_model = 0;
+  }
+
+  if(isothermal){
+    Pe = Ne*Ti;
+    Te = Ti;
   }
 
   // Communicate evolving variables
@@ -2696,6 +2703,10 @@ int Hermes::rhs(BoutReal time) {
     // help prevent negative density regions
     ddt(Pe) += Div_par_diffusion(Te * SQ(mesh->dy) * mesh->g_22 * 1e-4 / Nelim,
                                  Ne, false);
+  }
+
+  if(isothermal){
+    ddt(Pe) = Ne*Ti;
   }
 
   ///////////////////////////////////////////////////////////

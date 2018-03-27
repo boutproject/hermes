@@ -138,6 +138,8 @@ private:
   // Switches
   bool evolve_plasma; // Should plasma be evolved?
 
+  bool isothermal;
+
   bool electromagnetic; // Include magnetic potential psi
   bool FiniteElMass;    // Finite Electron Mass
 
