@@ -251,7 +251,7 @@ private:
   bool energy_source;          // Add the same amount of energy to each particle
   bool temperature_feedback;   // Feedback power source on temperature rather than pressure
   BoutReal source_p, source_i; // Proportional-Integral controller
-  Field2D Sn, Spe;             // Sources in density and Pe
+  Field3D Sn, Spe;             // Sources in density and Pe
   BoutReal total_Sn, total_Spe; // Sum over all cells
   Field3D NeSource, PeSource;   // These are the actual source added
 

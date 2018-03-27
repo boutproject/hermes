@@ -257,7 +257,7 @@ int Hermes::init(bool restarting) {
   Options *optne = opt->getSection("Ne");
   optne->get("D", Dne, -1.0);
   optne->get("source", source, "0.0");
-  Sn = fact.create2D(source);
+  Sn = fact.create3D(source);
   Sn /= Omega_ci;
 
   // Inflowing density carries momentum
@@ -273,7 +273,7 @@ int Hermes::init(bool restarting) {
   Options *optpe = opt->getSection("Pe");
   optpe->get("D", Dte, -1.0);
   optpe->get("source", source, "0.0");
-  Spe = fact.create2D(source);
+  Spe = fact.create3D(source);
   Spe /= Omega_ci;
 
   OPTION(optsc, core_sources, false);
@@ -282,8 +282,10 @@ int Hermes::init(bool restarting) {
       if (!mesh->periodicY(x)) {
         // Not periodic, so not in core
         for (int y = mesh->ystart; y <= mesh->yend; y++) {
-          Sn(x, y) = 0.0;
-          Spe(x, y) = 0.0;
+	  for (int z = 0; y < mesh->ngz - 1; z++) {
+	    Sn(x, y, z) = 0.0;
+	    Spe(x, y, z) = 0.0;
+	  }
         }
       }
     }
@@ -380,8 +382,10 @@ int Hermes::init(bool restarting) {
       total_Sn = total_Spe = 0.0;
       for (int i = 0; i < mesh->ngx; i++) {
         for (int j = 0; j < mesh->ngy; j++) {
-          total_Sn += Sn(i, j);
-          total_Spe += Spe(i, j);
+	  for (int k = 0; k < mesh->ngz - 1; k++) {
+	    total_Sn += Sn(i, j, k);
+	    total_Spe += Spe(i, j, k);
+	  }
         }
       }
       BoutReal local_values[2], values[2];
@@ -408,8 +412,8 @@ int Hermes::init(bool restarting) {
     } else {
       // Evolving the source profiles
 
-      Field2D Snsave = copy(Sn);
-      Field2D Spesave = copy(Spe);
+      Field3D Snsave = copy(Sn);
+      Field3D Spesave = copy(Spe);
       SOLVE_FOR2(Sn, Spe);
       Sn = Snsave;
       Spe = Spesave;
@@ -879,7 +883,7 @@ int Hermes::init(bool restarting) {
 }
 
 int Hermes::rhs(BoutReal time) {
-  // printf("TIME = %e\r", time);
+  printf("TIME = %e\r", time);
 
   if (!evolve_plasma) {
     Ne = 0.0;
@@ -1974,7 +1978,9 @@ int Hermes::rhs(BoutReal time) {
       BoutReal local_error = 0.0;
       for (int i = 0; i < mesh->ngx; i++) {
         for (int j = 0; j < mesh->ngy; j++) {
-          local_error += NeErr(i, j) * Sn(i, j);
+	  for (int k = 0; k < mesh->ngz -1; k++) {
+	    local_error += NeErr(i, j) * Sn(i, j, k);
+	  }
         }
       }
       BoutReal error;
@@ -2015,13 +2021,15 @@ int Hermes::rhs(BoutReal time) {
             continue; // Not periodic, so skip
 
           for (int y = mesh->ystart; y <= mesh->yend; y++) {
-            Sn(x, y) -= source_p * NeErr(x, y);
-            ddt(Sn)(x, y) = -source_i * NeErr(x, y);
+	    for (int z = 0; z < mesh->ngz -1; z++) {
+	      Sn(x, y, z) -= source_p * NeErr(x, y);
+	      ddt(Sn)(x, y, z) = -source_i * NeErr(x, y);
 
-            if (Sn(x, y) < 0.0) {
-              Sn(x, y) = 0.0;
-              if (ddt(Sn)(x, y) < 0.0)
-                ddt(Sn)(x, y) = 0.0;
+	      if (Sn(x, y, z) < 0.0) {
+		Sn(x, y, z) = 0.0;
+		if (ddt(Sn)(x, y, z) < 0.0)
+		  ddt(Sn)(x, y, z) = 0.0;
+	      }
             }
           }
         }
@@ -2575,7 +2583,9 @@ int Hermes::rhs(BoutReal time) {
       BoutReal local_error = 0.0;
       for (int i = 0; i < mesh->ngx; i++) {
         for (int j = 0; j < mesh->ngy; j++) {
-          local_error += PeErr(i, j) * Spe(i, j);
+	  for (int k = 0; k < mesh->ngz -1; k++) {
+	    local_error += PeErr(i, j) * Spe(i, j, k);
+	  }
         }
       }
       BoutReal error;
@@ -2616,13 +2626,15 @@ int Hermes::rhs(BoutReal time) {
             continue; // Not periodic, so skip
 
           for (int y = mesh->ystart; y <= mesh->yend; y++) {
-            Spe(x, y) -= source_p * PeErr(x, y);
-            ddt(Spe)(x, y) = -source_i * PeErr(x, y);
+	    for (int z = 0; z < mesh->ngz - 1; z++) {
+	      Spe(x, y, z) -= source_p * PeErr(x, y);
+	      ddt(Spe)(x, y, z) = -source_i * PeErr(x, y);
 
-            if (Spe(x, y) < 0.0) {
-              Spe(x, y) = 0.0;
-              if (ddt(Spe)(x, y) < 0.0)
-                ddt(Spe)(x, y) = 0.0;
+	      if (Spe(x, y, z) < 0.0) {
+		Spe(x, y, z) = 0.0;
+		if (ddt(Spe)(x, y, z) < 0.0)
+		  ddt(Spe)(x, y, z) = 0.0;
+	      }
             }
           }
         }
