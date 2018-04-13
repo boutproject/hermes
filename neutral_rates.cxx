@@ -32,7 +32,9 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
                       const Field3D &Nn, const Field3D &Tn, const Field3D &Vnpar, // Neutral gas
                       Field3D &S, Field3D &F, Field3D &Q, Field3D &R,  // Transfer rates
                       Field3D &Riz, Field3D &Rrc, Field3D &Rcx) {       // Rates
-  
+
+  Coordinates *coord = mesh->coordinates();
+
   // Allocate output fields
   /*
   S.allocate();
@@ -55,7 +57,7 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
   
   for (int i=mesh->xstart;i<=mesh->xend;i++)
     for (int j=mesh->ystart;j<=mesh->yend;j++)
-      for (int k=0;k<mesh->ngz-1;k++) {
+      for (int k=0;k<mesh->LocalNz;k++) {
         // Integrate rates over each cell in Y
         // NOTE: This should integrate over (x,y,z)
         
@@ -75,7 +77,7 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
         if (Nn_R < 0.) Nn_R = 0.0;
 
         // Jacobian (Cross-sectional area)
-        BoutReal J_C = mesh->J(i,j), J_L = 0.5*(mesh->J(i,j-1) + mesh->J(i,j)), J_R = 0.5*(mesh->J(i,j) + mesh->J(i,j+1));
+        BoutReal J_C = coord->J(i,j), J_L = 0.5*(coord->J(i,j-1) + coord->J(i,j)), J_R = 0.5*(coord->J(i,j) + coord->J(i,j+1));
         
         ///////////////////////////////////////////
         // Charge exchange 

@@ -26,11 +26,11 @@ class Hermes;
 
 #include <bout/physicsmodel.hxx>
 
-#include <bout/constants.hxx>
+#include <invert_laplace.hxx>
 #include <bout/invert/laplace3d.hxx>
 #include <bout/invert/laplacexy.hxx>
 #include <bout/invert/laplacexz.hxx>
-#include <invert_laplace.hxx>
+#include <bout/constants.hxx>
 
 #include "radiation.hxx"
 
@@ -202,7 +202,7 @@ private:
 
   // Fix density in SOL
   bool sol_fix_profiles;
-  FieldGenerator *sol_ne, *sol_te; // Generating functions
+  std::shared_ptr<FieldGenerator> sol_ne, sol_te; // Generating functions
 
   // Output switches for additional information
   bool verbose;    // Outputs additional fields, mainly for debugging
