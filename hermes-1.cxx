@@ -1041,7 +1041,7 @@ int Hermes::rhs(BoutReal time) {
       for (int j = 0; j < mesh->LocalNy; j++) {
         for (int k = 0; k < mesh->LocalNz; k++) {
           int kp = (k + 1) % (mesh->LocalNz);
-          int km = (k - 2 + mesh->LocalNz-1) % (mesh->LocalNz);
+          int km = (k - 2 + mesh->LocalNz+1) % (mesh->LocalNz);
 
           tau_e(i, j, k) =
               0.2 * (tt(i, j, k) + tt(i + 1, j, k) + tt(i - 1, j, k) +

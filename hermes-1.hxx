@@ -26,11 +26,11 @@ class Hermes;
 
 #include <bout/physicsmodel.hxx>
 
-#include <invert_laplace.hxx>
+#include <bout/constants.hxx>
 #include <bout/invert/laplace3d.hxx>
 #include <bout/invert/laplacexy.hxx>
 #include <bout/invert/laplacexz.hxx>
-#include <bout/constants.hxx>
+#include <invert_laplace.hxx>
 
 #include "radiation.hxx"
 
