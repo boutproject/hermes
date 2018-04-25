@@ -63,6 +63,7 @@ int Hermes::init(bool restarting) {
   Options *optsc = opt->getSection("Hermes");
 
   OPTION(optsc, evolve_plasma, true);
+  OPTION(optsc, evolve_source, false);
 
   OPTION(optsc, electromagnetic, true);
   OPTION(optsc, FiniteElMass, true);
@@ -419,7 +420,7 @@ int Hermes::init(bool restarting) {
       Spe = Spesave;
     }
   } else {
-    SAVE_ONCE2(Sn, Spe);
+    SAVE_REPEAT2(Sn, Spe);
   }
 
   /////////////////////////////////////////////////////////
@@ -893,6 +894,14 @@ int Hermes::rhs(BoutReal time) {
     NVi = 0.0;
     sheath_model = 0;
   }
+
+  if (evolve_source){
+    FieldFactory *fact = FieldFactory::get();
+    Sn = fact->create3D("source", Options::getRoot()->getSection("Ne"), mesh, Ne.getLocation(), time);
+    Spe = fact->create3D("source", Options::getRoot()->getSection("Pe"), mesh, Ne.getLocation(), time);
+  }
+    // mesh->communicate(Sn,Spe);
+
 
   // Communicate evolving variables
   mesh->communicate(EvolvingVars);
