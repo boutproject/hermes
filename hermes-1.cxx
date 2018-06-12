@@ -394,10 +394,10 @@ int Hermes::init(bool restarting) {
       total_Spe = values[1];
 
       density_error_lasttime = -1.0; // signal no value
-      solver->addToRestart(density_error_integral, "density_error_integral");
+      // solver->addToRestart(density_error_integral, "density_error_integral");
 
       pe_error_lasttime = -1.0;
-      solver->addToRestart(pe_error_integral, "pe_error_integral");
+      // solver->addToRestart(pe_error_integral, "pe_error_integral");
 
       if (!restarting) {
         density_error_integral = -1. / source_i;
@@ -870,7 +870,6 @@ int Hermes::init(bool restarting) {
 
   // Preconditioner
   setPrecon((preconfunc)&Hermes::precon);
-
   return 0;
 }
 
@@ -1041,7 +1040,7 @@ int Hermes::rhs(BoutReal time) {
       for (int j = 0; j < mesh->LocalNy; j++) {
         for (int k = 0; k < mesh->LocalNz; k++) {
           int kp = (k + 1) % (mesh->LocalNz);
-          int km = (k - 2 + mesh->LocalNz+1) % (mesh->LocalNz);
+          int km = (k - 1 + mesh->LocalNz) % (mesh->LocalNz);
 
           tau_e(i, j, k) =
               0.2 * (tt(i, j, k) + tt(i + 1, j, k) + tt(i - 1, j, k) +

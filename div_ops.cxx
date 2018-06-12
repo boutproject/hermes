@@ -1587,7 +1587,7 @@ const Field3D Div_Perp_Lap_FV(const Field3D &a, const Field3D &f, bool xflux) {
     for (int j = mesh->ystart; j <= mesh->yend; j++)
       for (int k = 0; k < mesh->LocalNz; k++) {
         int kp = (k + 1) % (mesh->LocalNz);
-        int km = (k - 1 + mesh->LocalNz - 1) % (mesh->LocalNz);
+        int km = (k - 1 + mesh->LocalNz) % (mesh->LocalNz);
 
         // Calculate gradients on cell faces
 
