@@ -488,7 +488,7 @@ int Hermes::init(bool restarting) {
     b0vec.y = 1. / coord->g_22;
 
     // b cross Grad(R) for centrifugal force
-    bxGradR = b0vec ^ Grad(Rxy);
+    bxGradR = cross(b0vec, Grad(Rxy));
 
     // Fill guard cells by communicating and applying boundary condition
     mesh->communicate(Omega_vec, bxGradR);

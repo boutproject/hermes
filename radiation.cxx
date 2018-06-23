@@ -68,7 +68,8 @@ BoutReal InterpRadiatedPower::power(BoutReal Te, BoutReal ne, BoutReal ni) {
 // 
 
 BoutReal HydrogenRadiatedPower::power(BoutReal Te, BoutReal ne, BoutReal ni) {
-  
+  TRACE("HydrogenRadiatedPower::power");
+  throw BoutException("Not implemented");
 }
 
 // Collision rate coefficient <sigma*v> [m3/s]
@@ -197,7 +198,8 @@ BoutReal HydrogenRadiatedPower::excitation(BoutReal Te) {
 
 
 BoutReal UpdatedRadiatedPower::power(BoutReal Te, BoutReal ne, BoutReal ni) {
-  
+  TRACE("UpdatedRadiatedPower::power");
+  throw BoutException("Not implemented");
 }
 
 // Collision rate coefficient <sigma*v> [m3/s]
