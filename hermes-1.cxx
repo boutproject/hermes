@@ -809,6 +809,8 @@ int Hermes::init(bool restarting) {
 
   Curlb_B *= 2. / mesh->Bxy;
 
+  SAVE_ONCE(Curlb_B.z);
+  
   if (j_par) {
     SAVE_REPEAT(Ve);
 
