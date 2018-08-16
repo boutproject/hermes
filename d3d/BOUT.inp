@@ -96,18 +96,15 @@ verbose = true    # Output additional fields
 
 #######################
 # Numerical dissipation
-numdiff = -5e-4    # Numerical diffusion
-polviscos = -1      # Viscosity
-hyper = -1      # Hyper-diffusion
-hyperpar = 1 
+
+numdiff = -1    # Numerical parallel viscosity
+hyper = -1      # Hyper resistivity
+hyperpar = 1    # Parallel hyper-viscosity
+
 ExBdiff = 1e-4  # Dissipation in ExB advection terms
 ExBpar = true   # Include y terms in dissipation
-ADpar = 1
-z_hyper_viscos = 1e-2
-x_hyper_viscos = 1e-2
 
 # Flux limiters
-flux_limit_alpha = -1  # Free streaming flux limiter
 kappa_limit_alpha = 0.2 # SOLPS style heat flux limiter
 eta_limit_alpha   = 0.5 # SOLPS style viscosity limiter
 

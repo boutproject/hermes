@@ -117,8 +117,7 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, anomalous_D, -1);
   OPTION(optsc, anomalous_chi, -1);
   OPTION(optsc, anomalous_nu, -1);
-
-  OPTION(optsc, flux_limit_alpha, -1);
+  
   OPTION(optsc, kappa_limit_alpha, -1);
   OPTION(optsc, eta_limit_alpha, -1);
 
@@ -129,9 +128,6 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, hyperpar, -1);
   OPTION(optsc, ExBdiff, -1);
   OPTION(optsc, ExBpar, false);
-  OPTION(optsc, ADpar, -1);
-  OPTION(optsc, ADpar_phine, false);
-  OPTION(optsc, ADpar_bndry, false);
   OPTION(optsc, low_pass_z, -1);
   OPTION(optsc, x_hyper_viscos, -1.0);
   OPTION(optsc, y_hyper_viscos, -1.0);
@@ -202,17 +198,7 @@ int Hermes::init(bool restarting) {
   tau_i0 = sqrt(AA) / (4.80e-8 * (Nnorm / 1e6) * Coulomb * pow(Tnorm, -3. / 2));
 
   output.write("\ttau_e0=%e, tau_i0=%e\n", tau_e0, tau_i0);
-
-  // Get a typical major radius (for flux limiter)
-  Field2D Rxy;
-  if (mesh->get(Rxy, "Rxy")) {
-    R0 = 1.0; // Set to 1 meter
-  } else {
-    R0 = max(Rxy, true); // Maximum over all processors
-  }
-  output.write("\t R0 = %e m\n", R0);
-  R0 /= rho_s0; // Normalise R0
-
+  
   if (anomalous_D > 0.0) {
     // Normalise
     anomalous_D /= rho_s0 * rho_s0 * Omega_ci; // m^2/s
@@ -1084,25 +1070,10 @@ int Hermes::rhs(BoutReal time) {
     // Braginskii expression for parallel conduction
     // kappa ~ n * v_th^2 * tau
     kappa_epar = 3.2 * mi_me * Telim * Nelim * tau_e;
-
-    if (flux_limit_alpha > 0) {
-      /* Apply a flux limiter
-       *
-       * Free streaming heat conduction calculated as:
-       *     kappa_fs = alpha * n V_th R0
-       *
-       * then the effective heat flux is
-       * kappa = kappa_par * kappa_fs / (kappa_par + kappa_fs)
-       */
-
-      Field3D kappa_fs = flux_limit_alpha * Nelim * sqrt(mi_me * Telim) * R0;
-      kappa_epar = kappa_epar * kappa_fs / (kappa_epar + kappa_fs);
-    }
-
+    
     if (kappa_limit_alpha > 0.0) {
       /*
-       * A better flux limiter, as used in SOLPS. This doesn't require
-       * an input length scale R0
+       * A better flux limiter, as used in SOLPS.
        *
        * Calculate the heat flux from Spitzer-Harm and flux limit
        *
@@ -2056,19 +2027,7 @@ int Hermes::rhs(BoutReal time) {
       ddt(Ne) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, Ne, ne_bndry_flux);
     }
   }
-
-  if (ADpar > 0.0) {
-    // ddt(Ne) += ADpar * AddedDissipation(1.0, Pe, Ne, false);
-
-    ddt(Ne) += ADpar * AddedDissipation(Ne, Pe, Nelim, ADpar_bndry);
-
-    if (ADpar_phine) {
-      ddt(Ne) -= ADpar * AddedDissipation(Ne, phi, Nelim, ADpar_bndry);
-    } else {
-      ddt(Ne) -= ADpar * AddedDissipation(1.0, phi, Ne, ADpar_bndry);
-    }
-  }
-
+  
   if (low_n_diffuse) {
     // Diffusion which kicks in at very low density, in order to
     // help prevent negative density regions
@@ -2097,9 +2056,7 @@ int Hermes::rhs(BoutReal time) {
 
     if (j_par) {
       // Parallel current
-      // ddt(Vort) += Div_par(Jpar);
-      ddt(Vort) += 0.5 * (Div_par(Jpar) + Ne * Div_par(Vi - Ve) +
-                          (Vi - Ve) * Grad_par(Ne));
+      ddt(Vort) += Div_par(Jpar);
     }
 
     if (j_diamag) {
@@ -2153,7 +2110,6 @@ int Hermes::rhs(BoutReal time) {
     }
 
     if (classical_diffusion) {
-      /// Field3D mu = 0.75*(1.+1.6*SQ(neoclassical_q))/tau_i;
       Field3D mu = 0.3 * Ti / (tau_i * SQ(mesh->Bxy));
       ddt(Vort) += Div_Perp_Lap_FV(mu, Vort, vort_bndry_flux);
     }
@@ -2183,14 +2139,7 @@ int Hermes::rhs(BoutReal time) {
             ExBdiff * Div_Perp_Lap_FV_Index(1.0, Vort, vort_bndry_flux);
       }
     }
-
-    if (ADpar > 0.0) {
-      if (ADpar_phine) {
-        ddt(Vort) -= ADpar * AddedDissipation(Ne, phi, Nelim, ADpar_bndry);
-      } else {
-        ddt(Vort) -= ADpar * AddedDissipation(1.0, phi, Ne, ADpar_bndry);
-      }
-    }
+    
     if (z_hyper_viscos > 0) {
       // Form of hyper-viscosity to suppress zig-zags in Z
       ddt(Vort) -= z_hyper_viscos * SQ(SQ(mesh->dz)) * D4DZ4(Vort);
@@ -2241,12 +2190,7 @@ int Hermes::rhs(BoutReal time) {
     if (electron_viscosity) {
       // Electron parallel viscosity (Braginskii)
       Field3D ve_eta = 0.973 * mi_me * tau_e * Telim;
-
-      if (flux_limit_alpha > 0) {
-        // Limit to free streaming value
-        Field3D ve_eta_fs = flux_limit_alpha * sqrt(mi_me * Telim) * R0;
-        ve_eta = (ve_eta * ve_eta_fs) / (ve_eta + ve_eta_fs);
-      }
+      
       if (eta_limit_alpha > 0.) {
         // SOLPS-style flux limiter
         // Values of alpha ~ 0.5 typically
@@ -2333,7 +2277,6 @@ int Hermes::rhs(BoutReal time) {
 
     if (numdiff > 0.0) {
       ddt(NVi) += numdiff * Div_par_diffusion_index(Vi);
-      // ddt(NVi) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*numdiff, Vi);
     }
 
     if (density_inflow) {
@@ -2367,10 +2310,6 @@ int Hermes::rhs(BoutReal time) {
       }
     }
 
-    if (ADpar > 0.0) {
-      ddt(NVi) += ADpar * AddedDissipation(Ne, Pe, NVi, ADpar_bndry);
-    }
-
     if (hyperpar > 0.0) {
       ddt(NVi) -= D4DY4_FV(SQ(SQ(mesh->dy)), Vi) / mi_me;
     }
@@ -2393,12 +2332,7 @@ int Hermes::rhs(BoutReal time) {
       Div_n_bxGrad_f_B_XPPM(Pe, phi, pe_bndry_flux, poloidal_flows, true);
 
   if (parallel_flow) {
-    if (currents) {
-      // Like Ne term, parallel wave speed increased
-      ddt(Pe) -= Div_par_FV_FS(Pe, Ve, sqrt(mi_me) * sound_speed);
-    } else {
-      ddt(Pe) -= Div_par_FV_FS(Pe, Ve, sound_speed);
-    }
+    ddt(Pe) -= Div_parP_LtoC(Pe, Ve);
   }
 
   if (j_diamag) { // Diamagnetic flow
@@ -2677,20 +2611,7 @@ int Hermes::rhs(BoutReal time) {
       ddt(Pe) += ExBdiff * Div_Perp_Lap_FV_Index(1.0, Pe, pe_bndry_flux);
     }
   }
-
-  if (ADpar > 0.0) {
-    // ddt(Pe) += ADpar * AddedDissipation(1.0, Pe, Pe, false);
-
-    ddt(Pe) += ADpar * AddedDissipation(Ne, Pe, Pelim, ADpar_bndry);
-    if (ADpar_phine) {
-      ddt(Pe) -= ADpar * AddedDissipation(Ne, phi, Telim * Nelim, ADpar_bndry);
-    } else {
-      ddt(Pe) -= ADpar * AddedDissipation(1.0, phi, Pe, ADpar_bndry);
-    }
-
-    ddt(Pe) += ADpar * AddedDissipation(1.0, Te, 1.0, ADpar_bndry);
-  }
-
+  
   if (low_n_diffuse) {
     // Diffusion which kicks in at very low density, in order to
     // help prevent negative density regions
@@ -3479,8 +3400,6 @@ int Hermes::rhs(BoutReal time) {
 
       if (neut_numdiff > 0.0) {
         ddt(NVn) += neut_numdiff * Div_par_diffusion_index(Vn);
-        // ddt(NVn) += Div_par_diffusion(SQ(mesh->dy)*mesh->g_22*neut_numdiff,
-        // Vn);
       }
 
       ddt(NVi) -= F;

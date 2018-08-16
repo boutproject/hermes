@@ -68,8 +68,7 @@ private:
 
   // Collisional damping
   Field3D nu, kappa_epar, Dn;
-
-  BoutReal flux_limit_alpha;  // Flux limiter. < 0 disables
+  
   BoutReal kappa_limit_alpha; // Heat flux limiter from SOLPS
   BoutReal eta_limit_alpha;   // Momentum flux limiter from SOLPS
 
@@ -226,9 +225,6 @@ private:
   BoutReal neut_numdiff;             // Numdiff for neutral gas
   BoutReal ExBdiff;
   bool ExBpar;      // Include parallel terms in ExBdiff
-  BoutReal ADpar;   // Added Dissipation method in the parallel direction
-  bool ADpar_phine; // Include 1/Ne factor in phi ADpar term
-  bool ADpar_bndry; // Boundaries included in ADpar?
   int low_pass_z;   // Fourier filter in Z
   BoutReal z_hyper_viscos, x_hyper_viscos, y_hyper_viscos; // 4th-order derivatives
   bool low_n_diffuse; // Diffusion in parallel direction at low density
@@ -274,7 +270,7 @@ private:
 
   // Normalisation parameters
   BoutReal Tnorm, Nnorm, Bnorm;
-  BoutReal AA, Cs0, rho_s0, Omega_ci, R0;
+  BoutReal AA, Cs0, rho_s0, Omega_ci;
   BoutReal mi_me, beta_e;
   Field2D hthe;
 
