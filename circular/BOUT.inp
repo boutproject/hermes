@@ -2,7 +2,6 @@
 NOUT = 1000     # number of output time-steps
 TIMESTEP = 10  # time between outputs
 
-ShiftXderivs = true # use shifted radial derivatives?
 TwistShift = true  # use twist-shift condition?
 ballooning = true
 shiftinitial = false
@@ -17,6 +16,7 @@ grid="cbm18_dens8.grid_nx68ny64_profiles.nc"
 init_missing=true
 
 [mesh]
+paralleltransform = shifted  # Shifted metric method
 symmetricGlobalX = true
 
 ##################################################
@@ -195,8 +195,8 @@ conduction =1
 scale = 0.0
 
 bndry_all = neumann_o2
-bndry_xin = shifted(neumann_o2)
-bndry_xout = shifted(neumann_o2)
+bndry_xin = neumann_o2
+bndry_xout = neumann_o2
 
 [Ne] # Electron density 
 function = 0
@@ -207,9 +207,9 @@ source = 0.0 #1e2 * exp(-(32*x^2))
 function = 0
 
 [VePsi] # Ve + 0.5*beta_e*mi_me*psi
-bndry_core = zerolaplace #shifted(dirichlet_o2) #constlaplace
-bndry_pf   = shifted(dirichlet_o2)
-bndry_xout = shifted(dirichlet_o2)
+bndry_core = zerolaplace #dirichlet_o2 #constlaplace
+bndry_pf   = dirichlet_o2
+bndry_xout = dirichlet_o2
 
 [Pe]  # Electron pressure
 scale = 1.0

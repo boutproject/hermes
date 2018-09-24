@@ -10,6 +10,17 @@ void LoadMetric(BoutReal Lnorm, BoutReal Bnorm) {
   GRID_LOAD5(Rxy, Bpxy, Btxy, hthe, sinty); // Load metrics
 
   Coordinates *coord = mesh->coordinates();
+
+  string paralleltransform;
+  OPTION(Options::getRoot()->getSection("mesh"), paralleltransform, "identity");
+  
+  if (paralleltransform == "shifted") {
+    // Shifted metric
+    output << "LoadMetric: Using shifted metric\n";
+    sinty = 0.0;
+  } else {
+    output << "LoadMetric: Using field-aligned metric\n";
+  }
   
   // Checking for dpsi and qinty used in BOUT grids
   Field2D dx;
