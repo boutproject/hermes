@@ -138,7 +138,8 @@ private:
   // Switches
   bool evolve_plasma; // Should plasma be evolved?
   bool evolve_source; // Should the source be evolved?
-
+  bool ngs;           // use NGS source?
+  
   bool electromagnetic; // Include magnetic potential psi
   bool FiniteElMass;    // Finite Electron Mass
 

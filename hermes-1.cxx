@@ -64,6 +64,7 @@ int Hermes::init(bool restarting) {
 
   OPTION(optsc, evolve_plasma, true);
   OPTION(optsc, evolve_source, false);
+  OPTION(optsc, ngs, false);
 
   OPTION(optsc, electromagnetic, true);
   OPTION(optsc, FiniteElMass, true);
@@ -879,6 +880,10 @@ int Hermes::init(bool restarting) {
 
   psi = phi = 0.0;
 
+  if(ngs && evolve_source){
+    throw BoutException("Both evolve_source and NGS sources set.");
+  }
+  
   // Preconditioner
   setPrecon((preconfunc)&Hermes::precon);
 
@@ -902,8 +907,6 @@ int Hermes::rhs(BoutReal time) {
     Sn = fact->create3D("source", Options::getRoot()->getSection("Ne"), mesh, Ne.getLocation(), time);
     Spe = fact->create3D("source", Options::getRoot()->getSection("Pe"), mesh, Ne.getLocation(), time);
   }
-    // mesh->communicate(Sn,Spe);
-
 
   // Communicate evolving variables
   mesh->communicate(EvolvingVars);
@@ -912,7 +915,14 @@ int Hermes::rhs(BoutReal time) {
 
   Te = Pe / Nelim;
   Vi = NVi / Nelim;
-
+  
+  if(ngs){
+    FieldFactory *fact = FieldFactory::get();
+    Sn =  fact->create3D("source_ngs", Options::getRoot()->getSection("Ne"), mesh, Ne.getLocation(), time);
+    Sn *= 6057843469078.271* (Ne*Nnorm ^ (1/3.))* ((Te*Tnorm)^1.64) /(Nnorm * Omega_ci);
+    Spe = (3/2)*Sn*Te;
+  }
+  
   Telim = floor(Te, 0.1 / Tnorm);
 
   Field3D Pelim = Telim * Nelim;
