@@ -917,9 +917,14 @@ int Hermes::rhs(BoutReal time) {
   Vi = NVi / Nelim;
   
   if(ngs){
+    BoutReal C = 4.7e3;
+    BoutReal N = 3.3e20;   // W7-X pellets (Panadero NF 2018)
+    double alpha = 0.444;
+    BoutReal NGS_coef = C * pow(N,alpha);  // M^delta = 1.0 (Hydrogen)
+
     FieldFactory *fact = FieldFactory::get();
     Sn =  fact->create3D("source_ngs", Options::getRoot()->getSection("Ne"), mesh, Ne.getLocation(), time);
-    Sn *= 6057843469078.271* (Ne*Nnorm ^ (1/3.))* ((Te*Tnorm)^1.64) /(Nnorm * Omega_ci);
+    Sn *= NGS_coef* (Ne*Nnorm ^ (1/3.))* ((Te*Tnorm)^1.64) /(Nnorm * Omega_ci);
     Spe = (3/2)*Sn*Te;
   }
   
