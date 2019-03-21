@@ -76,7 +76,12 @@ a form of Ohm's law:
   \frac{\partial}{\partial t}\left[\frac{m_e}{m_i}\left(v_{||e}-v_{||i}\right) + \frac{1}{2}\beta_e\psi\right] &=& \nu j_{||}/n_e + \partial_{||}\phi - \frac{1}{n_e}\partial_{||} p_e - 0.71\partial_{||} T_e \label{eq:ohmslaw} \\
   &&+ \frac{m_e}{m_i}\left(\mathbf{V}_{E\times B} + \mathbf{b}v_{||i}\right)\cdot\nabla\left(v_{||i} - v_{||e}\right)
 \end{eqnarray}
-with E$\times$B and magnetic drifts given by:
+Density is normalised to a reference density $n_0$, temperature to a
+reference $T_0$, times to a reference ion cyclotron time $\Omega_i = eB_0/m_i$, and length scales to a reference ion sound gyro-radius $\rho_{s0} = c_{s0}/\Omega_i$. $c_{s0} = \sqrt{eT_0/m_i}$ is a reference sound speed.
+The electrostatic potential $\phi$ is normalised to the reference temperature, and the electromagnetic potential is normalised as $\psi = -2A_{||} / \left(B_0\beta_e\rho_s\right)$
+with $\beta_e = 2\mu_0en_0T_0/B_0^2$ is a reference electron beta.
+
+The E$\times$B and magnetic drifts given by:
 \begin{equation}
 \mathbf{V}_{E\times B} = \frac{\mathbf{b}\times\nabla \phi}{B} \qquad \mathbf{V}_{mag} = -T_e\nabla\times\frac{\mathbf{b}}{B}
 \end{equation}
@@ -285,6 +290,7 @@ Output quantities are normalised, with the normalisation factors stored in the o
   \texttt{Cs0}  & Speed  & m/s \\
   \texttt{Omega\_ci} & Time & 1/s \\
   \texttt{rho\_s0} & Length & m \\
+  \texttt{beta\_e} & Electron beta & no units \\
   \hline
 \end{tabular}
 \end{center}
@@ -301,6 +307,8 @@ Output quantities are normalised, with the normalisation factors stored in the o
   \texttt{Nn}  & Neutral density & \texttt{Nnorm} [$m^{-3}$] \\
   \texttt{NVn} & Neutral flux  & \texttt{Nnorm}$\times$\texttt{Cs0} [$m^{-2}s^{-1}$]\\
   \texttt{Pn}  & Neutral pressure & e$\times$\texttt{Nnorm}$\times$\texttt{Tnorm} [Pascals] \\
+  \texttt{phi} & Electrostatic potential & \texttt{Tnorm} [Volts] \\
+  \texttt{psi} & Electromagnetic potential & -$\frac{1}{2}\times$\texttt{Bnorm}$\times$\texttt{beta\_e}$\times$\texttt{rho\_s} [Wb] \\
   \hline
 \end{tabular}
 \end{center}

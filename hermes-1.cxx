@@ -188,7 +188,9 @@ int Hermes::init(bool restarting) {
   rho_s0 = Cs0 / Omega_ci;
 
   mi_me = AA * Mp / Me;
-  beta_e = qe * Tnorm * Nnorm / (SQ(Bnorm) / mu0);
+  
+  // beta_e = Electron pressure / magnetic pressure
+  beta_e = qe * Tnorm * Nnorm / (SQ(Bnorm) / (2.*mu0));
 
   output.write("\tmi_me=%e, beta_e=%e\n", mi_me, beta_e);
   SAVE_ONCE2(mi_me, beta_e);
