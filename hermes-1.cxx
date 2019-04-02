@@ -190,7 +190,10 @@ int Hermes::init(bool restarting) {
   rho_s0 = Cs0 / Omega_ci;
 
   mi_me = AA * Mp / Me;
-  beta_e = qe * Tnorm * Nnorm / (SQ(Bnorm) / mu0);
+
+  
+  // beta_e = Electron pressure / magnetic pressure
+  beta_e = qe * Tnorm * Nnorm / (SQ(Bnorm) / (2.*mu0));
 
   output.write("\tmi_me=%e, beta_e=%e\n", mi_me, beta_e);
   SAVE_ONCE2(mi_me, beta_e);
@@ -925,6 +928,7 @@ int Hermes::rhs(BoutReal time) {
     FieldFactory *fact = FieldFactory::get();
     Sn =  fact->create3D("source_ngs", Options::getRoot()->getSection("Ne"), mesh, Ne.getLocation(), time);
     Sn *= NGS_coef* (Ne*Nnorm ^ (1/3.))* ((Te*Tnorm)^1.64) /(Nnorm * Omega_ci);
+
     Spe = (3/2)*Sn*Te;
   }
   
