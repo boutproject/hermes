@@ -25,9 +25,10 @@ class Hermes;
 #define __HERMES_H__
 
 #include <bout/physicsmodel.hxx>
+#include <initialprofiles.hxx>
 
 #include <bout/constants.hxx>
-#include <bout/invert/laplace3d.hxx>
+// #include <bout/invert/laplace3d.hxx>
 #include <bout/invert/laplacexy.hxx>
 #include <bout/invert/laplacexz.hxx>
 #include <invert_laplace.hxx>
@@ -63,6 +64,8 @@ private:
   Field3D psi;          // Electromagnetic potential (-A_||)
   Field3D phi;          // Electrostatic potential
 
+  Field3D phi_r;         // Radial electric field 
+  
   // Limited variables
   Field3D Telim;
 
@@ -183,9 +186,9 @@ private:
   int radial_outer_width; // Number of points in the outer radial buffer
   BoutReal radial_buffer_D; // Diffusion in buffer region
 
-  Field2D sink_invlpar; // Parallel inverse connection length (1/L_{||}) for
+  Field3D sink_invlpar; // Parallel inverse connection length (1/L_{||}) for
                         // sink terms
-  Field2D alpha_dw;
+  Field3D alpha_dw;
 
   // Sheath heat transmission factor
   int sheath_model;       // Sets boundary condition model

@@ -22,6 +22,7 @@
 #include "hermes-1.hxx"
 
 #include <derivs.hxx>
+
 #include <field_factory.hxx>
 #include <initialprofiles.hxx>
 
@@ -58,7 +59,7 @@ const Field3D ceil(const Field3D &var, BoutReal f) {
 
 int Hermes::init(bool restarting) {
   Options *opt = Options::getRoot();
-  Coordinates *coord = mesh->coordinates();
+  Coordinates *coord = mesh->getCoordinates();
 
   // Switches in model section
   Options *optsc = opt->getSection("Hermes");
@@ -189,7 +190,7 @@ int Hermes::init(bool restarting) {
   rho_s0 = Cs0 / Omega_ci;
 
   mi_me = AA * Mp / Me;
-  beta_e = qe * Tnorm * Nnorm / (SQ(Bnorm) / mu0);
+  beta_e = qe * Tnorm * Nnorm / (SQ(Bnorm) / (2.*mu0));
 
   output.write("\tmi_me=%e, beta_e=%e\n", mi_me, beta_e);
   SAVE_ONCE2(mi_me, beta_e);
@@ -212,6 +213,7 @@ int Hermes::init(bool restarting) {
     R0 = max(Rxy, true); // Maximum over all processors
   }
   output.write("\t R0 = %e m\n", R0);
+
   R0 /= rho_s0; // Normalise R0
 
   if (anomalous_D > 0.0) {
@@ -239,17 +241,19 @@ int Hermes::init(bool restarting) {
     Jpar0 = 0.0;
   }
 
-  string source;
+  std::string source;
   FieldFactory fact(mesh);
 
   if (sinks) {
     optsc->get("sink_invlpar", source, "0.05"); // 20 m
-    sink_invlpar = fact.create2D(source);
+    sink_invlpar = fact.create3D(source);
+    // mesh->get(sink_invlpar,"invlpar");
     sink_invlpar *= rho_s0; // Normalise
     SAVE_ONCE(sink_invlpar);
 
     if (drift_wave) {
-      alpha_dw = fact.create2D("Hermes:alpha_dw");
+      // alpha_dw = fact.create2D("Hermes:alpha_dw");
+      mesh->get(alpha_dw,"alpha_dw");
       SAVE_ONCE(alpha_dw);
     }
   }
@@ -277,6 +281,13 @@ int Hermes::init(bool restarting) {
   Spe = fact.create2D(source);
   Spe /= Omega_ci;
 
+  // Options *optphi = opt->getSection("Phi");
+  // optphi->get("source", source, "0.0");
+  initial_profile("phi_r", phi_r);
+  // phi_r = fact.create3D(source);
+  phi_r /= Tnorm;
+  SAVE_REPEAT(phi_r);
+  
   OPTION(optsc, core_sources, false);
   if (core_sources) {
     for (int x = mesh->xstart; x <= mesh->xend; x++) {
@@ -298,7 +309,7 @@ int Hermes::init(bool restarting) {
   }
 
   // Mid-plane power flux q_||
-  string midplane_power;
+  std::string midplane_power;
   OPTION(optpe, midplane_power, "0.0");
   // Midplane power specified in Watts per m^2
   Field2D qfact;
@@ -453,6 +464,8 @@ int Hermes::init(bool restarting) {
 
     coord->geometry(); // Calculate other metrics
   }
+
+  SAVE_ONCE(R0);
 
   /////////////////////////////////////////////////////////
   // Toroidal rotation
@@ -856,7 +869,7 @@ int Hermes::init(bool restarting) {
   nu = 0.0;
   kappa_epar = 0.0;
   Dn = 0.0;
-
+  
   SAVE_REPEAT(Telim);
   if (verbose) {
     SAVE_REPEAT(Jpar);
@@ -874,8 +887,8 @@ int Hermes::init(bool restarting) {
 }
 
 int Hermes::rhs(BoutReal time) {
-  // printf("TIME = %e\r", time);
-  Coordinates *coord = mesh->coordinates();
+  printf("TIME = %e\r", time);
+  Coordinates *coord = mesh->getCoordinates();
 
   if (!evolve_plasma) {
     Ne = 0.0;
@@ -1019,6 +1032,7 @@ int Hermes::rhs(BoutReal time) {
         phi = phiSolver->solve(Vort * SQ(coord->Bxy) / Nelim, sheathmult * Telim);
       }
     }
+    // phi += phi_r;
     phi.applyBoundary(time);
     mesh->communicate(phi);
   }
@@ -1194,7 +1208,7 @@ int Hermes::rhs(BoutReal time) {
         // Special case where Ohm's law has no time-derivatives
         mesh->communicate(phi);
 
-        Ve = Vi + (Grad_parP_CtoL(phi) - Grad_parP_CtoL(Pe) / Ne) / nu;
+        Ve = Vi + (Grad_parP_CtoL(phi+phi_r) - Grad_parP_CtoL(Pe) / Ne) / nu;
 
         if (thermal_force) {
           Ve -= 0.71 * Grad_parP_CtoL(Te) / nu;
@@ -1920,7 +1934,7 @@ int Hermes::rhs(BoutReal time) {
   // This is the electron density equation
   TRACE("density");
 
-  ddt(Ne) = -Div_n_bxGrad_f_B_XPPM(Ne, phi, ne_bndry_flux, poloidal_flows,
+  ddt(Ne) = -Div_n_bxGrad_f_B_XPPM(Ne, phi+phi_r, ne_bndry_flux, poloidal_flows,
                                    true); // ExB drift
 
   // Parallel flow
@@ -2125,7 +2139,7 @@ int Hermes::rhs(BoutReal time) {
       // form of this becomes simple, similar to the terms in
       // the density and pressure equations
       ddt(Vort) -=
-          Div_n_bxGrad_f_B_XPPM(Vort, phi, vort_bndry_flux, poloidal_flows);
+          Div_n_bxGrad_f_B_XPPM(Vort, phi+phi_r, vort_bndry_flux, poloidal_flows);
     } else {
       // When the Boussinesq approximation is not made,
       // then the changing ion density introduces a number
@@ -2135,11 +2149,11 @@ int Hermes::rhs(BoutReal time) {
       mesh->communicate(tmp);
       tmp.applyBoundary("neumann");
 
-      ddt(Vort) -= 0.5 * Div_n_bxGrad_f_B_XPPM(Vort + tmp, phi, vort_bndry_flux,
+      ddt(Vort) -= 0.5 * Div_n_bxGrad_f_B_XPPM(Vort + tmp, phi+phi_r, vort_bndry_flux,
                                                poloidal_flows);
 
       // Ion density
-      Field3D dnidt = -Div_n_bxGrad_f_B_XPPM(Ne, phi); // ExB drift of ions
+      Field3D dnidt = -Div_n_bxGrad_f_B_XPPM(Ne, phi+phi_r); // ExB drift of ions
       // dnidt -= Div_parP_LtoC(Ne,Vi); // Parallel flow
 
       mesh->communicate(dnidt);
@@ -2386,7 +2400,7 @@ int Hermes::rhs(BoutReal time) {
 
   // Divergence of heat flux due to ExB advection
   ddt(Pe) -=
-      Div_n_bxGrad_f_B_XPPM(Pe, phi, pe_bndry_flux, poloidal_flows, true);
+      Div_n_bxGrad_f_B_XPPM(Pe, phi+phi_r, pe_bndry_flux, poloidal_flows, true);
 
   if (parallel_flow) {
     if (currents) {
@@ -2403,7 +2417,7 @@ int Hermes::rhs(BoutReal time) {
 
     // This term energetically balances diamagnetic term
     // in the vorticity equation
-    ddt(Pe) -= (2. / 3) * Pe * (Curlb_B * Grad(phi));
+    ddt(Pe) -= (2. / 3) * Pe * (Curlb_B * Grad(phi+phi_r));
   }
 
   // Parallel heat conduction
@@ -3121,7 +3135,7 @@ int Hermes::rhs(BoutReal time) {
       }
 
       // Density
-      ddt(Nn2D) = -Div(Vn2D, Nn2D);
+      // ddt(Nn2D) = -Div(Vn2D, Nn2D);
 
       Field2D Nn2D_floor = floor(Nn2D, 1e-2);
       // Velocity
@@ -3165,8 +3179,8 @@ int Hermes::rhs(BoutReal time) {
       //////////////////////////////////////////////////////
       // Pressure
       ddt(Pn2D) =
-          -Div(Vn2D, Pn2D) -
-          (gamma_ratio - 1.) * Pn2D * DivV2D * floor(Nn2D, 0) / Nn2D_floor +
+	  // -Div(Vn2D, Pn2D) -
+	-(gamma_ratio - 1.) * Pn2D * DivV2D * floor(Nn2D, 0) / Nn2D_floor +
           Laplace_FV(neutral_conduction, Pn2D / Nn2D);
 
       ///////////////////////////////////////////////////////////////////
@@ -3664,14 +3678,15 @@ int Hermes::rhs(BoutReal time) {
     // Field3D nsink = 0.5*Ne*sqrt(Telim)*sink_invlpar;   // n C_s/ (2L)  //
     // Sound speed flow to targets
     Field3D nsink = 0.5 * sqrt(Ti) * Ne * sink_invlpar;
+    nsink = -Ne*(phi)*sink_invlpar;
     nsink = floor(nsink, 0.0);
 
     ddt(Ne) -= nsink;
 
     Field3D conduct = (2. / 3) * kappa_epar * Te * SQ(sink_invlpar);
     conduct = floor(conduct, 0.0);
-    ddt(Pe) -= conduct      // Heat conduction
-               + Te * nsink // Advection
+    // ddt(Pe) -= conduct;      // Heat conduction
+    ddt(Pe) -= Te * nsink // Advection
         ;
 
     if (sheath_closure) {
@@ -3787,7 +3802,7 @@ const Field3D Hermes::D(const Field3D &f, BoutReal d) { // Diffusion operator
   if (d < 0.0)
     return 0.0;
 
-  Coordinates *coord = mesh->coordinates();
+  Coordinates *coord = mesh->getCoordinates();
 
   return Div_par_diffusion(d * SQ(coord->dy * coord->g_22), f)
       //+ d*SQ(coord->dx)*D2DX2(f)
@@ -3800,7 +3815,7 @@ const Field3D Hermes::H(const Field3D &f, BoutReal h) { // Diffusion operator
   if (h < 0.0)
     return 0.0;
 
-  Coordinates *coord = mesh->coordinates();
+  Coordinates *coord = mesh->getCoordinates();
 
   return -D4DY4_FV(h * SQ(SQ(coord->dy)), f)
       //- h*SQ(SQ(coord->dx))*D4DX4(f)
@@ -3813,7 +3828,7 @@ const Field3D Hermes::H(const Field3D &f, BoutReal h,
   if (h < 0.0)
     return 0.0;
 
-  Coordinates *coord = mesh->coordinates();
+  Coordinates *coord = mesh->getCoordinates();
 
   return -D4DY4_FV(h * mask * SQ(SQ(coord->dy)), f) -
          h * mask * SQ(SQ(coord->dx)) * D4DX4(f) -

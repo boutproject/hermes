@@ -33,7 +33,7 @@ void Hermes::neutral_rates(const Field3D &Ne, const Field3D &Te, const Field3D &
                       Field3D &S, Field3D &F, Field3D &Q, Field3D &R,  // Transfer rates
                       Field3D &Riz, Field3D &Rrc, Field3D &Rcx) {       // Rates
 
-  Coordinates *coord = mesh->coordinates();
+  Coordinates *coord = mesh->getCoordinates();
 
   // Allocate output fields
   /*

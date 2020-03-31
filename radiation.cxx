@@ -3,6 +3,7 @@
 #include <output.hxx>
 #include <boutexception.hxx>
 #include <utils.hxx>
+#include "hermes-1.hxx"
 
 #include "radiation.hxx"
 
@@ -22,7 +23,7 @@ const Field3D RadiatedPower::power(const Field3D &Te, const Field3D &Ne, const F
   return result;
 }
 
-InterpRadiatedPower::InterpRadiatedPower(const string &filename) {
+InterpRadiatedPower::InterpRadiatedPower(const std::string &filename) {
   std::ifstream file(filename.c_str());
   
   output.write("Loading data from file: %s\n", filename.c_str());
@@ -30,12 +31,12 @@ InterpRadiatedPower::InterpRadiatedPower(const string &filename) {
   if(!file.is_open())
     throw BoutException("InterpRadiatedPower: Couldn't open file %s\n", filename.c_str());
 
-  string line;
+  std::string line;
   int linenr = 1;
   while( std::getline(file, line) ) {
     // Expecting either a comment, blank line, or two numbers
     // Remove comments, then whitespace from left and right
-    string strippedline = trim( trimComments( line ) );
+    std::string strippedline = trim( trimComments( line ) );
     
     if(strippedline.length() == 0)
       continue;

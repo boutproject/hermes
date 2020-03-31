@@ -1,6 +1,7 @@
 #include <globals.hxx>
 #include <output.hxx>
 #include <utils.hxx>
+#include "hermes-1.hxx"
 
 #include "loadmetric.hxx"
 
@@ -9,9 +10,9 @@ void LoadMetric(BoutReal Lnorm, BoutReal Bnorm) {
   Field2D Rxy, Bpxy, Btxy, hthe, sinty;
   GRID_LOAD5(Rxy, Bpxy, Btxy, hthe, sinty); // Load metrics
 
-  Coordinates *coord = mesh->coordinates();
+  Coordinates *coord = mesh->getCoordinates();
 
-  string paralleltransform;
+  std::string paralleltransform;
   OPTION(Options::getRoot()->getSection("mesh"), paralleltransform, "identity");
   
   if (paralleltransform == "shifted") {
