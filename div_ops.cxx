@@ -1028,7 +1028,7 @@ const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n_in, const Field3D &f_in,
 
         // Upwind(s, mesh->dx(i,j));
         // XPPM(s, mesh->dx(i,j));
-        //Fromm(s, mesh->dx(i, j));
+        // Fromm(s, mesh->dx(i, j));
         MC(s, mesh->dx(i, j));
 
         // Right side
@@ -1104,7 +1104,7 @@ const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n_in, const Field3D &f_in,
 
         // Upwind(s, mesh->dz);
         // XPPM(s, mesh->dz);
-        //Fromm(s, mesh->dz);
+        // Fromm(s, mesh->dz);
         MC(s, mesh->dz);
 
         if (vU > 0.0) {
@@ -1432,7 +1432,7 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v,
 
         // Upwind(s, mesh->dz);
         // XPPM(s, mesh->dz);
-        //Fromm(s, mesh->dz);
+        // Fromm(s, mesh->dz);
         MC(s, mesh->dz);
 
         if (vU > 0.0) {
@@ -1454,24 +1454,24 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v,
   // Y advection
   // Currently just using simple centered differences
   // so no fluxes need to be exchanged
-  for (int i = mesh->xstart; i <= mesh->xend; i++)
-    for (int j = mesh->ystart; j <= mesh->yend; j++)
-      for (int k = 0; k < mesh->ngz - 1; k++) {
+ // for (int i = mesh->xstart; i <= mesh->xend; i++)
+  //  for (int j = mesh->ystart; j <= mesh->yend; j++)
+    //  for (int k = 0; k < mesh->ngz - 1; k++) {
 
         // Y velocities on y boundaries
-        BoutReal vU = 0.25 * (v.y(i, j, k) + v.y(i, j + 1, k)) *
-                      (mesh->J(i, j) + mesh->J(i, j + 1));
-        BoutReal vD = 0.25 * (v.y(i, j, k) + v.y(i, j - 1, k)) *
-                      (mesh->J(i, j) + mesh->J(i, j - 1));
+      //  BoutReal vU = 0.25 * (v.y(i, j, k) + v.y(i, j + 1, k)) *
+      //                (mesh->J(i, j) + mesh->J(i, j + 1));
+       // BoutReal vD = 0.25 * (v.y(i, j, k) + v.y(i, j - 1, k)) *
+        //              (mesh->J(i, j) + mesh->J(i, j - 1));
 
         // n (advected quantity) on y boundaries
         // Note: Use unshifted n_in variable
-        BoutReal nU = 0.5 * (n_in(i, j, k) + n_in(i, j + 1, k));
-        BoutReal nD = 0.5 * (n_in(i, j, k) + n_in(i, j - 1, k));
+        //BoutReal nU = 0.5 * (n_in(i, j, k) + n_in(i, j + 1, k));
+        //BoutReal nD = 0.5 * (n_in(i, j, k) + n_in(i, j - 1, k));
 
-        result(i, j, k) +=
-            (nU * vU - nD * vD) / (mesh->J(i, j) * mesh->dy(i, j));
-      }
+        //result(i, j, k) +=
+          //  (nU * vU - nD * vD) / (mesh->J(i, j) * mesh->dy(i, j));
+     // }
 
   return result;
 }
@@ -1720,7 +1720,7 @@ const Field3D Div_par_FV(const Field3D &f, const Field3D &v) {
         }
 
         // Upwind(s, mesh->dy(i,j));  // 1st order accurate
-        //Fromm(s, mesh->dy(i, j)); // 2nd order, some upwinding
+        // Fromm(s, mesh->dy(i, j)); // 2nd order, some upwinding
         // XPPM(s, mesh->dy(i,j));    // High order
         MC(s, mesh->dy(i,j));
 
@@ -2249,8 +2249,9 @@ const Field3D Div_parV_FV(const Field3D &v) {
         }
 
         // Upwind(s, mesh->dy(i,j));  // 1st order accurate
-        Fromm(s, mesh->dy(i, j)); // 2nd order, some upwinding
-                                  // XPPM(s, mesh->dy(i,j));    // High order
+        // Fromm(s, mesh->dy(i, j)); // 2nd order, some upwinding
+        // XPPM(s, mesh->dy(i,j));    // High order
+        MC(s, mesh->dy(i, j));
 
         if (s.R > 0.0) {
           // Out of this cell; use s.R

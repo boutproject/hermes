@@ -136,13 +136,13 @@ private:
   RadiatedPower *carbon_rad; // Carbon cooling curve
 
   // Switches
-  bool evolve_plasma; // Should plasma be evolved?
-
+  bool evolve_plasma;   // Should plasma be evolved?
+  
   bool electromagnetic; // Include magnetic potential psi
   bool FiniteElMass;    // Finite Electron Mass
-
-  bool j_diamag; // Diamagnetic current: Vort <-> Pe
-  bool j_par;    // Parallel current:    Vort <-> Psi
+  
+  bool j_diamag;    // Diamagnetic current: Vort <-> Pe
+  bool j_par;       // Parallel current:    Vort <-> Psi
   bool parallel_flow;
   bool pe_par;             // Parallel pressure gradient: Pe <-> Psi
   bool resistivity;        // Resistivity: Psi -> Pe
@@ -232,6 +232,8 @@ private:
   int low_pass_z;   // Fourier filter in Z
   BoutReal z_hyper_viscos, x_hyper_viscos, y_hyper_viscos; // 4th-order derivatives
   bool low_n_diffuse; // Diffusion in parallel direction at low density
+  bool low_n_diffuse_p;
+  bool low_n_diffuse_nvi;
   bool low_n_diffuse_perp; // Diffusion in perpendicular direction at low density
   BoutReal ne_hyper_z, pe_hyper_z; // Hyper-diffusion
 

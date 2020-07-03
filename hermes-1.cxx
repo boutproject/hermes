@@ -141,6 +141,8 @@ int Hermes::init(bool restarting) {
   OPTION(optsc, pe_hyper_z, -1.0);
 
   OPTION(optsc, low_n_diffuse, true);
+  OPTION(optsc, low_n_diffuse_p, false);
+  OPTION(optsc, low_n_diffuse_nvi, false);
   OPTION(optsc, low_n_diffuse_perp, false);
 
   OPTION(optsc, vepsi_dissipation, false);
@@ -484,7 +486,7 @@ int Hermes::init(bool restarting) {
     Vector2D b0vec;
     b0vec.covariant = false;
     b0vec.x = b0vec.z = 0;
-    b0vec.y = 1. / mesh->g_22;
+    b0vec.y = 1. / sqrt(mesh->g_22);
 
     // b cross Grad(R) for centrifugal force
     bxGradR = b0vec ^ Grad(Rxy);
@@ -2086,7 +2088,7 @@ int Hermes::rhs(BoutReal time) {
   ///////////////////////////////////////////////////////////
   // Vorticity
   // This is the current continuity equation
-
+  
   TRACE("vorticity");
 
   ddt(Vort) = 0.0;
@@ -2205,6 +2207,7 @@ int Hermes::rhs(BoutReal time) {
       ddt(Vort) -= y_hyper_viscos * D4DY4_FV_Index(Vort, false);
     }
   }
+  Field3D mu = 0.3 * Ti / (tau_i * SQ(mesh->Bxy));
 
   ///////////////////////////////////////////////////////////
   // Ohm's law
@@ -2317,11 +2320,13 @@ int Hermes::rhs(BoutReal time) {
 
       ddt(NVi) -= Div_f_v_XPPM(
           NVi,
-          -SQ(rotation_rate) * bxGradR / mesh->Bxy // centrifugal force
+       -SQ(rotation_rate) * bxGradR / mesh->Bxy // centrifugal force
               + 2. * Vi * Omega_vec / mesh->Bxy    // Coriolis force
-          ,
-          ne_bndry_flux);
-    }
+          , ne_bndry_flux);
+
+       
+    ddt(NVi) -= 2.*Grad(phi)*Omega_vec/mesh->Bxy;
+   }
 
     // Ion-neutral friction
     if (ion_neutral > 0.0)
@@ -2370,9 +2375,9 @@ int Hermes::rhs(BoutReal time) {
       ddt(NVi) -= D4DY4_FV(SQ(SQ(mesh->dy)), Vi) / mi_me;
     }
 
-    if (low_n_diffuse) {
+   if (low_n_diffuse_nvi) {
       // Diffusion which kicks in at very low density, in order to
-      // help prevent negative density regions
+       //help prevent negative density regions
       ddt(NVi) += Div_par_diffusion(
           Vi * SQ(mesh->dy) * mesh->g_22 * 1e-4 / Nelim, Ne, true);
     }
@@ -2686,9 +2691,9 @@ int Hermes::rhs(BoutReal time) {
     ddt(Pe) += ADpar * AddedDissipation(1.0, Te, 1.0, ADpar_bndry);
   }
 
-  if (low_n_diffuse) {
-    // Diffusion which kicks in at very low density, in order to
-    // help prevent negative density regions
+  if (low_n_diffuse_p) {
+     //Diffusion which kicks in at very low density, in order to
+     //help prevent negative density regions
     ddt(Pe) += Div_par_diffusion(Te * SQ(mesh->dy) * mesh->g_22 * 1e-4 / Nelim,
                                  Ne, false);
   }
@@ -3659,19 +3664,16 @@ int Hermes::rhs(BoutReal time) {
 
   if (sinks) {
     // Sink terms for 2D simulations
+    // Sheath connected
 
-    // Field3D nsink = 0.5*Ne*sqrt(Telim)*sink_invlpar;   // n C_s/ (2L)  //
     // Sound speed flow to targets
-    Field3D nsink = 0.5 * sqrt(Ti) * Ne * sink_invlpar;
-    nsink = floor(nsink, 0.0);
+    // Note: Fixed Ti here is used since otherwise low Te results in
+    // unreasonably small sinks in the far SOL.
+    Field3D nsink = floor(0.5 * sqrt(Ti + Telim) * Ne * sink_invlpar, 0.0);
 
     ddt(Ne) -= nsink;
 
-    Field3D conduct = (2. / 3) * kappa_epar * Te * SQ(sink_invlpar);
-    conduct = floor(conduct, 0.0);
-    ddt(Pe) -= conduct      // Heat conduction
-               + Te * nsink // Advection
-        ;
+    ddt(Pe) -= (2./3) * sheath_gamma * Te * nsink;
 
     if (sheath_closure) {
       ///////////////////////////
