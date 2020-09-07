@@ -2145,7 +2145,7 @@ int Hermes::rhs(BoutReal time) {
       // then the changing ion density introduces a number
       // of other terms.
 
-      Field3D tmp = Ne * Delp2(phi) / coord->Bxy;
+      Field3D tmp = Ne * Delp2(phi+phi_r) / coord->Bxy;
       mesh->communicate(tmp);
       tmp.applyBoundary("neumann");
 
@@ -2159,7 +2159,7 @@ int Hermes::rhs(BoutReal time) {
       mesh->communicate(dnidt);
       dnidt.applyBoundary("neumann");
       ddt(Vort) +=
-          Div_Perp_Lap_FV((0.5 * dnidt) / SQ(coord->Bxy), phi, vort_bndry_flux);
+          Div_Perp_Lap_FV((0.5 * dnidt) / SQ(coord->Bxy), phi+phi_r, vort_bndry_flux);
     }
 
     if (classical_diffusion) {
@@ -2274,7 +2274,7 @@ int Hermes::rhs(BoutReal time) {
     if (FiniteElMass) {
       // Finite Electron Mass. Small correction needed to conserve energy
       ddt(VePsi) -= Vi * Grad_par(Ve - Vi); // Parallel advection
-      ddt(VePsi) -= bracket(phi, Ve - Vi);  // ExB advection
+      ddt(VePsi) -= bracket(phi+phi_r, Ve - Vi);  // ExB advection
       // Should also have ion polarisation advection here
     }
 
