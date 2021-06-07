@@ -14,6 +14,8 @@
 const Field3D RadiatedPower::power(const Field3D &Te, const Field3D &Ne, const Field3D &Ni) {
   Field3D result;
   result.allocate();
+
+  auto mesh = bout::globals::mesh;
   
   for(int i=0;i<mesh->LocalNx;i++)
     for(int j=0;j<mesh->LocalNy;j++)

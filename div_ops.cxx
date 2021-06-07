@@ -37,7 +37,8 @@
 const Field3D Div_n_a_bxGrad_f_B(const Field3D &n, const Field3D &a,
                                  const Field3D &f, bool xflux, bool yderiv) {
   Field3D result = 0.0;
-  
+
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   // X flux
@@ -204,6 +205,7 @@ const Field3D Div_n_a_bxGrad_f_B(const Field3D &n, const Field3D &a,
 const Field3D Div_n_bxGrad_f_B(const Field3D &n, const Field3D &f) {
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   // X flux
@@ -279,6 +281,7 @@ const Field3D Div_Perp_Lap(const Field3D &a, const Field3D &fin) {
   Field3D result;
   result.allocate();
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   Field3D f = fin;
@@ -379,6 +382,7 @@ const Field3D Div_Perp_Lap_x3(const Field3D &a, const Field3D &f, bool xflux) {
   Field3D result;
   result.allocate();
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
   
   Field3D fs = f;
@@ -476,6 +480,7 @@ const Field3D Div_Perp_Lap_XYZ(const Field3D &a, const Field3D &f,
                                bool bndryflux) {
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
   
   Field3D fs = f;
@@ -590,6 +595,7 @@ const Field3D Div_par_diffusion(const Field3D &K, const Field3D &f,
   Field3D result;
   result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
   
   for (int i = mesh->xstart; i <= mesh->xend; i++)
@@ -629,6 +635,7 @@ const Field3D Div_par_spitzer(BoutReal K0, const Field3D &Te, bool bndry_flux) {
   Field3D result;
   result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
   
   for (int i = mesh->xstart; i <= mesh->xend; i++)
@@ -667,7 +674,8 @@ const Field3D Div_par_diffusion_upwind(const Field3D &K, const Field3D &f,
                                        bool bndry_flux) {
   Field3D result;
   result = 0.0;
-  
+
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   for (int i = mesh->xstart; i <= mesh->xend; i++)
@@ -709,6 +717,7 @@ const Field3D Div_par_diffusion_index(const Field3D &f, bool bndry_flux) {
   Field3D result;
   result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   for (int i = mesh->xstart; i <= mesh->xend; i++)
@@ -750,6 +759,7 @@ const Field3D AddedDissipation(const Field3D &N, const Field3D &P,
                                const Field3D f, bool bndry_flux) {
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   for (int i = mesh->xstart; i <= mesh->xend; i++)
@@ -950,6 +960,7 @@ const Field3D Div_n_bxGrad_f_B_XPPM(const Field3D &n_in, const Field3D &f_in,
                                     bool positive) {
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   //////////////////////////////////////////
@@ -1290,6 +1301,7 @@ const Field3D Div_f_v_XPPM(const Field3D &n_in, const Vector3D &v,
 
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   Field3D vx = v.x;
@@ -1455,6 +1467,7 @@ void communicateFluxes(Field3D &f) {
   // Takes values in guard cells, and adds them to cells
 
   // Use X=0 as temporary buffer
+  auto mesh = bout::globals::mesh;
   if (mesh->xstart != 2)
     throw BoutException("communicateFluxes: Sorry!");
 
@@ -1498,6 +1511,7 @@ const Field3D Div_Perp_Lap_FV_Index(const Field3D &a, const Field3D &f,
 
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   //////////////////////////////////////////
@@ -1564,6 +1578,7 @@ const Field3D Div_Perp_Lap_FV(const Field3D &a, const Field3D &f, bool xflux) {
 
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   //////////////////////////////////////////
@@ -1652,6 +1667,7 @@ const Field3D Div_par_FV(const Field3D &f, const Field3D &v) {
   // Finite volume parallel divergence
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   bool highorder = false; // using a high order method
@@ -1749,6 +1765,7 @@ const Field3D Div_par_FV_FS(const Field3D &f, const Field3D &v,
   // Finite volume parallel divergence
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   int ncz = mesh->LocalNz;
@@ -1913,6 +1930,7 @@ const Field3D Div_par_FV_FS(const Field3D &f, const Field3D &v,
 const Field3D D4DY4_FV(const Field3D &d, const Field3D &f, bool bndry_flux) {
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   for (int i = mesh->xstart; i <= mesh->xend; i++)
@@ -2016,6 +2034,7 @@ const Field3D D4DY4_FV(const Field3D &d, const Field3D &f, bool bndry_flux) {
 const Field3D D4DY4_FV_Index(const Field3D &f, bool bndry_flux) {
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   for (int i = mesh->xstart; i <= mesh->xend; i++)
@@ -2098,6 +2117,7 @@ const Field3D D4DY4_FV_Index(const Field3D &f, bool bndry_flux) {
 const Field3D D4DX4_FV_Index(const Field3D &f_in, bool bndry_flux) {
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   Field3D f = f_in;
@@ -2184,6 +2204,7 @@ const Field3D Div_parV_FV(const Field3D &v) {
   // Finite volume parallel divergence of a flow velocity
   Field3D result = 0.0;
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   bool highorder = false; // using a high order method
@@ -2270,6 +2291,7 @@ const Field2D Laplace_FV(const Field2D &k, const Field2D &f) {
   Field2D result;
   result.allocate();
 
+  auto mesh = bout::globals::mesh;
   Coordinates *coord = mesh->getCoordinates();
 
   for (int i = mesh->xstart; i <= mesh->xend; i++)

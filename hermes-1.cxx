@@ -44,7 +44,7 @@ BoutReal floor(const BoutReal &var, const BoutReal &f) {
 const Field3D ceil(const Field3D &var, BoutReal f) {
   Field3D result;
   result.allocate();
-  
+  auto mesh = bout::globals::mesh;
   for (int jx=0;jx<mesh->LocalNx;jx++)
     for (int jy=0;jy<mesh->LocalNy;jy++)
       for (int jz=0;jz<mesh->LocalNz;jz++) {
@@ -3760,10 +3760,10 @@ int Hermes::rhs(BoutReal time) {
  * @param[in] delta   Not used here
  */
 int Hermes::precon(BoutReal t, BoutReal gamma, BoutReal delta) {
-  static InvertPar *inv = NULL;
+  static std::unique_ptr<InvertPar> inv{nullptr};
   if (!inv) {
     // Initialise parallel inversion class
-    inv = InvertPar::Create();
+    auto inv = InvertPar::create();
     inv->setCoefA(1.0);
   }
   if (thermal_conduction) {
@@ -3779,7 +3779,7 @@ int Hermes::precon(BoutReal t, BoutReal gamma, BoutReal delta) {
     // Solve (1 - gamma*Dnn*Delp2)^{-1}
     static Laplacian *inv = NULL;
     if (!inv) {
-      inv = Laplacian::create();
+      auto inv = Laplacian::create();
       // Zero value outer boundary
 
       inv->setInnerBoundaryFlags(INVERT_DC_GRAD | INVERT_AC_GRAD);

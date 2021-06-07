@@ -8,13 +8,15 @@
 void LoadMetric(BoutReal Lnorm, BoutReal Bnorm) {
   // Load metric coefficients from the mesh
   Field2D Rxy, Bpxy, Btxy, hthe, sinty;
+  auto mesh = bout::globals::mesh;
+
   GRID_LOAD5(Rxy, Bpxy, Btxy, hthe, sinty); // Load metrics
 
   Coordinates *coord = mesh->getCoordinates();
 
   std::string paralleltransform;
   OPTION(Options::getRoot()->getSection("mesh"), paralleltransform, "identity");
-  
+   
   if (paralleltransform == "shifted") {
     // Shifted metric
     output << "LoadMetric: Using shifted metric\n";
