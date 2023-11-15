@@ -1,4 +1,8 @@
-      _   _                               
+> [!WARNING]
+> This version of Hermes (version 1, cold ion) is no longer maintained.
+> Users are recommended to move to [Hermes-3](https://github.com/bendudson/hermes-3/).
+
+      _   _
      | | | |                              
      | |_| | ___ _ __ _ __ ___   ___  ___ 
      |  _  |/ _ \ '__| '_ ` _ \ / _ \/ __|
